@@ -110,7 +110,7 @@ class DeepSeekClient:
         language: str,
         context: str = "",
     ) -> str:
-        """使用 LLM 分析代码中的安全漏洞
+        """使用 LLM 分析代码中的安全漏洞（验证模式：针对已知片段）
 
         Args:
             code: 源代码内容
@@ -124,6 +124,28 @@ class DeepSeekClient:
 
         messages = PromptTemplates.code_audit(code, language, context)
         return await self.chat(messages, json_mode=True)
+
+    async def deep_audit_file(
+        self,
+        code: str,
+        language: str,
+        file_path: str,
+    ) -> str:
+        """LLM 独立深度审计（审计模式：独立发现漏洞，不依赖正则）
+
+        Args:
+            code: 完整源文件内容
+            language: 编程语言
+            file_path: 文件路径（提供上下文）
+
+        Returns:
+            LLM 审计结果（JSON 格式字符串）
+        """
+        from .prompts import PromptTemplates
+
+        messages = PromptTemplates.deep_audit(code, language, file_path)
+        # 深度审计需要更多 token
+        return await self.chat(messages, json_mode=True, max_tokens=8192)
 
     async def analyze_scan_results(
         self,

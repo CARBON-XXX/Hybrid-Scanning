@@ -116,7 +116,7 @@ async def _run_sast(config: AppConfig, project_dir: str, use_llm: bool) -> None:
 
     if use_llm and config.llm.api_key:
         llm_client = DeepSeekClient(config.llm)
-        console.print(f"[*] Mode: regex scan + LLM cross-validation [bold]({llm_client.model_name})[/bold]")
+        console.print(f"[*] Mode: [bold]Dual-Engine[/bold] (Regex + LLM Deep Audit) [{llm_client.model_name}]")
 
         def _llm_log(msg: str) -> None:
             console.print(f"[dim]{msg}[/dim]")
@@ -310,12 +310,12 @@ def _print_findings_table(findings: list) -> None:
         return
 
     table = Table(title="Vulnerability Findings", show_lines=True)
-    table.add_column("ID", style="cyan", width=10)
+    table.add_column("ID", style="cyan", width=12)
     table.add_column("SEVERITY", width=10)
     table.add_column("TITLE", width=28)
-    table.add_column("FILE", width=35)
-    table.add_column("LINE", width=8)
-    table.add_column("LLM", width=8)
+    table.add_column("FILE", width=30)
+    table.add_column("LINE", width=6)
+    table.add_column("SOURCE", width=8)
 
     severity_colors = {
         "Critical": "bold red",
@@ -323,6 +323,12 @@ def _print_findings_table(findings: list) -> None:
         "Medium": "yellow",
         "Low": "green",
         "Info": "blue",
+    }
+
+    source_styles = {
+        "both": "[bold green]BOTH[/bold green]",
+        "regex": "[dim]REGEX[/dim]",
+        "llm": "[bold cyan]LLM[/bold cyan]",
     }
 
     for f in findings:
@@ -333,7 +339,8 @@ def _print_findings_table(findings: list) -> None:
 
         sev = d.get("severity", "Info")
         color = severity_colors.get(sev, "white")
-        llm_mark = "PASS" if d.get("llm_verified") else "--"
+        src = d.get("source", "regex")
+        src_display = source_styles.get(src, src)
 
         table.add_row(
             d.get("rule_id", ""),
@@ -341,7 +348,7 @@ def _print_findings_table(findings: list) -> None:
             d.get("title", ""),
             d.get("file_path", "")[-30:],
             str(d.get("line_start", "")),
-            llm_mark,
+            src_display,
         )
 
     console.print(table)

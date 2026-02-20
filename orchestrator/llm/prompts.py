@@ -59,6 +59,61 @@ class PromptTemplates:
         ]
 
     @staticmethod
+    def deep_audit(code: str, language: str, file_path: str) -> list[dict[str, str]]:
+        """深度代码审计 Prompt - LLM 独立发现漏洞，不依赖正则"""
+        system = (
+            "You are an elite application security auditor performing a manual code review.\n"
+            "Your job is to find ALL security vulnerabilities in the provided source code.\n"
+            "Think like an attacker. Trace data flows from user input to dangerous sinks.\n\n"
+            "You MUST check for:\n"
+            "- Injection: SQL, OS command, LDAP, XPath, template (SSTI)\n"
+            "- Broken Auth: missing auth checks, session fixation, weak credentials\n"
+            "- Sensitive Data Exposure: hardcoded secrets, info leakage, debug mode\n"
+            "- Broken Access Control: IDOR, privilege escalation, missing ownership checks\n"
+            "- Security Misconfiguration: debug enabled, permissive CORS, missing headers\n"
+            "- XSS: reflected, stored, DOM-based\n"
+            "- Insecure Deserialization: pickle, yaml.load, unserialize\n"
+            "- SSRF: user-controlled URLs in server-side requests\n"
+            "- Path Traversal: user-controlled file paths\n"
+            "- Cryptographic Issues: weak hashing, hardcoded keys, insecure random\n"
+            "- File Upload: missing validation, path traversal in filename\n\n"
+            "Rules:\n"
+            "1. Report ONLY real, exploitable vulnerabilities with HIGH confidence.\n"
+            "2. Include the EXACT line numbers from the code.\n"
+            "3. Use CWE IDs for classification.\n"
+            "4. Output MUST be valid JSON."
+        )
+        user_content = (
+            f"Audit this {language} file for security vulnerabilities.\n"
+            f"File: {file_path}\n\n"
+            f"```{language}\n{code}\n```\n\n"
+            "Output JSON:\n"
+            "```json\n"
+            "{\n"
+            '  "findings": [\n'
+            "    {\n"
+            '      "cwe": "CWE-xxx",\n'
+            '      "title": "Vulnerability title",\n'
+            '      "severity": "Critical|High|Medium|Low",\n'
+            '      "confidence": "High|Medium",\n'
+            '      "line_start": 0,\n'
+            '      "line_end": 0,\n'
+            '      "code_snippet": "the vulnerable code",\n'
+            '      "description": "What the vulnerability is and how it can be exploited",\n'
+            '      "impact": "What an attacker can achieve",\n'
+            '      "remediation": "How to fix it"\n'
+            "    }\n"
+            "  ],\n"
+            '  "summary": "Brief overall assessment"\n'
+            "}\n"
+            "```"
+        )
+        return [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_content},
+        ]
+
+    @staticmethod
     def scan_analysis(
         fingerprint_data: dict[str, Any],
         open_ports: list[dict[str, Any]],
