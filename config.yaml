@@ -1,0 +1,39 @@
+# Hybrid Scanning Engine 配置文件
+# 使用 `python -m orchestrator.main init` 可重新生成默认配置
+
+llm:
+  # DeepSeek API 配置（兼容 OpenAI SDK 格式）
+  api_key: ""  # 在此填入你的 DeepSeek API Key (e.g. "sk-xxxxxxxx")
+  base_url: "https://api.deepseek.com"
+  model: "deepseek-chat"
+  max_tokens: 4096
+  temperature: 0.1  # 安全分析场景建议低温，减少幻觉
+
+scanner:
+  # Rust 扫描引擎配置
+  binary_path: "./scanner-engine/target/release/scanner-engine.exe"
+  port_scan_concurrency: 500
+  dir_bust_concurrency: 100
+  timeout_ms: 3000
+  wordlist_path: "./wordlists/common.txt"
+
+sast:
+  # 静态分析配置
+  max_file_size_kb: 512
+  languages:
+    - python
+    - javascript
+    - php
+    - java
+  exclude_dirs:
+    - node_modules
+    - .git
+    - __pycache__
+    - venv
+    - .venv
+    - vendor
+    - target
+    - build
+    - dist
+
+report_output_dir: "./reports"

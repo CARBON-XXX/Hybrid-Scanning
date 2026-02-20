@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hybrid-scanner"
+version = "0.1.0"
+description = "混合型漏洞扫描引擎 - Rust 高并发探测 + Python LLM 推理"
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27.0",
+    "openai>=1.12.0",
+    "pyyaml>=6.0",
+    "rich>=13.7",
+    "typer>=0.9",
+    "pydantic>=2.5",
+    "aiofiles>=23.2",
+    "jinja2>=3.1",
+]
+
+[project.scripts]
+hybrid-scanner = "orchestrator.main:app"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "S", "B", "A", "C4", "SIM"]
+ignore = ["S101", "S603", "S607"]

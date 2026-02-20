@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+
+# Rust
+scanner-engine/target/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+reports/
+instance/
+vuln-app/uploads/
+vuln-app/backups/
+vuln-app/instance/
+vuln-app/*.log
+
+# Secrets - DO NOT commit real API keys
+# config.yaml is tracked with placeholder key
