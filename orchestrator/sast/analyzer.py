@@ -82,12 +82,18 @@ class SASTAnalyzer:
         for lang in self._config.languages:
             target_exts.update(LANG_EXTENSIONS.get(lang, []))
 
+        # 第三方压缩库后缀，跳过以减少误报
+        VENDOR_SUFFIXES = (".min.js", ".min.css", ".bundle.js", ".chunk.js")
+
         files: list[Path] = []
         for f in project_path.rglob("*"):
             # 跳过排除目录
             if any(excluded in f.parts for excluded in self._config.exclude_dirs):
                 continue
             if f.is_file() and f.suffix in target_exts:
+                # 跳过第三方压缩/打包文件
+                if f.name.endswith(VENDOR_SUFFIXES):
+                    continue
                 # 跳过过大的文件
                 if f.stat().st_size <= self._config.max_file_size_kb * 1024:
                     files.append(f)

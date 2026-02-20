@@ -10,6 +10,18 @@ from jinja2 import Template
 
 from orchestrator.llm.client import DeepSeekClient
 
+
+def _mask_secrets(cfg: dict) -> dict:
+    """遮蔽配置中的敏感字段（如 API Key），防止报告泄露凭据"""
+    import copy
+    masked = copy.deepcopy(cfg)
+    llm = masked.get("llm", {})
+    if llm.get("api_key"):
+        key = llm["api_key"]
+        llm["api_key"] = key[:6] + "***" + key[-4:] if len(key) > 10 else "***"
+    return masked
+
+
 # 报告 Markdown 模板
 REPORT_TEMPLATE = Template("""\
 # Security Assessment Report
@@ -207,7 +219,7 @@ class ReportGenerator:
             findings=findings,
             dast_analysis=dast_analysis,
             correlation=correlation,
-            config_json=json.dumps(config or {}, indent=2, ensure_ascii=False),
+            config_json=json.dumps(_mask_secrets(config or {}), indent=2, ensure_ascii=False),
         )
 
         # 保存文件
@@ -222,7 +234,7 @@ class ReportGenerator:
         filename = f"report_{safe_target}_{timestamp}.md"
         report_path = self._output_dir / filename
 
-        report_path.write_text(report_content, encoding="utf-8")
+        report_path.write_text(report_content, encoding="utf-8-sig")
 
         # 同时输出 JSON 格式
         json_path = report_path.with_suffix(".json")
@@ -244,7 +256,7 @@ class ReportGenerator:
         }
         json_path.write_text(
             json.dumps(json_data, indent=2, ensure_ascii=False),
-            encoding="utf-8",
+            encoding="utf-8-sig",
         )
 
         return report_path
