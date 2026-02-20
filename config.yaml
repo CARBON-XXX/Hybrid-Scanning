@@ -5,7 +5,7 @@ llm:
   # DeepSeek API 配置（兼容 OpenAI SDK 格式）
   api_key: ""  # 在此填入你的 DeepSeek API Key (e.g. "sk-xxxxxxxx")
   base_url: "https://api.deepseek.com"
-  model: "deepseek-chat"
+  model: "deepseek-chat"          # V3.2 非思考; CLI --reasoning 自动切换为 deepseek-reasoner (V3.2 思考)
   max_tokens: 4096
   temperature: 0.1  # 安全分析场景建议低温，减少幻觉
 

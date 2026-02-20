@@ -41,8 +41,8 @@ def load_config(config_path: str) -> AppConfig:
 def cmd_sast(
     project_dir: str = typer.Argument(..., help="待扫描的项目目录路径"),
     config_path: str = typer.Option("./config.yaml", "--config", "-c", help="配置文件路径"),
-    use_llm: bool = typer.Option(False, "--llm", help="启用 LLM 交叉验证 (deepseek-chat)"),
-    reasoning: bool = typer.Option(False, "--reasoning", "-r", help="使用深度思考模型 (deepseek-reasoner / R1)"),
+    use_llm: bool = typer.Option(False, "--llm", help="启用 LLM 双引擎 (DeepSeek-V3.2 非思考)"),
+    reasoning: bool = typer.Option(False, "--reasoning", "-r", help="使用 DeepSeek-V3.2 思考模式"),
     output: Optional[str] = typer.Option(None, "--output", "-o", help="报告输出目录"),
 ) -> None:
     """SAST - 静态代码安全分析"""

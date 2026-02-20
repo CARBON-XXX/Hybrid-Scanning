@@ -148,12 +148,12 @@ The SAST engine ships with **30+ rules** covering OWASP Top 10 and common vulner
 
 ## LLM Integration
 
-The engine supports two DeepSeek models:
+Both modes use **DeepSeek-V3.2**:
 
-| Model | Flag | Use Case |
-|-------|------|----------|
-| `deepseek-chat` | `--llm` | Fast cross-validation, low cost |
-| `deepseek-reasoner` (R1) | `--reasoning` | Deep analysis with chain-of-thought reasoning |
+| Mode | Model ID | Flag | Use Case |
+|------|----------|------|----------|
+| V3.2 Non-Thinking | `deepseek-chat` | `--llm` | Fast dual-engine scan, low cost |
+| V3.2 Thinking | `deepseek-reasoner` | `--reasoning` | Deep chain-of-thought analysis, higher accuracy |
 
 The LLM verification pipeline:
 1. **Connectivity test** before starting (fail-fast with clear error)

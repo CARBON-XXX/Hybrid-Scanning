@@ -1,4 +1,4 @@
-"""DeepSeek API 客户端 - 支持 deepseek-chat 和 deepseek-reasoner 模型"""
+"""DeepSeek API 客户端 - 支持 DeepSeek-V3.2 思考/非思考模式"""
 from __future__ import annotations
 
 from typing import Any, Optional
@@ -7,16 +7,16 @@ from openai import AsyncOpenAI
 
 from orchestrator.config import LLMConfig
 
-# deepseek-reasoner 不支持的参数
+# DeepSeek-V3.2 思考模式对应的模型名
 REASONER_MODEL = "deepseek-reasoner"
 
 
 class DeepSeekClient:
     """DeepSeek API 客户端
 
-    支持两种模型：
-    - deepseek-chat    : 通用对话模型，支持 temperature / json_mode / system role
-    - deepseek-reasoner : 深度思考模型 (R1)，不支持 temperature / top_p / json_mode，
+    支持 DeepSeek-V3.2 两种模式：
+    - deepseek-chat    : V3.2 非思考模式，支持 temperature / json_mode / system role
+    - deepseek-reasoner : V3.2 思考模式，不支持 temperature / top_p / json_mode，
                           system 角色需合并到 user 消息中
     """
 
@@ -33,7 +33,9 @@ class DeepSeekClient:
 
     @property
     def model_name(self) -> str:
-        return self._config.model
+        if self._config.model == REASONER_MODEL:
+            return "DeepSeek-V3.2-Thinking"
+        return "DeepSeek-V3.2"
 
     async def chat(
         self,
@@ -45,9 +47,9 @@ class DeepSeekClient:
     ) -> str:
         """发送对话请求并返回助手回复内容
 
-        自动根据模型类型调整参数：
-        - deepseek-chat: 完整参数支持
-        - deepseek-reasoner: 移除不支持的参数，合并 system 到 user
+        自动根据模式调整参数：
+        - V3.2 非思考 (deepseek-chat): 完整参数支持
+        - V3.2 思考 (deepseek-reasoner): 移除不支持的参数，合并 system 到 user
         """
         final_messages = self._prepare_messages(messages)
 
@@ -58,11 +60,11 @@ class DeepSeekClient:
         }
 
         if self.is_reasoner:
-            # reasoner 不支持 temperature, top_p, response_format, max_tokens
+            # V3.2 思考模式不支持 temperature, top_p, response_format, max_tokens
             # 改用 max_completion_tokens
             kwargs["max_completion_tokens"] = max_tokens or self._config.max_tokens
         else:
-            # chat 模型支持完整参数
+            # V3.2 非思考模式支持完整参数
             kwargs["temperature"] = temperature if temperature is not None else self._config.temperature
             kwargs["max_tokens"] = max_tokens if max_tokens is not None else self._config.max_tokens
             if json_mode:
@@ -71,13 +73,13 @@ class DeepSeekClient:
         response = await self._client.chat.completions.create(**kwargs)
         content = response.choices[0].message.content or ""
 
-        # reasoner 模型额外返回 reasoning_content，这里只取最终结果
+        # V3.2 思考模式额外返回 reasoning_content，这里只取最终结果
         return content
 
     def _prepare_messages(
         self, messages: list[dict[str, str]]
     ) -> list[dict[str, str]]:
-        """reasoner 模型不支持 system role，需合并到第一条 user 消息"""
+        """V3.2 思考模式不支持 system role，需合并到第一条 user 消息"""
         if not self.is_reasoner:
             return messages
 
