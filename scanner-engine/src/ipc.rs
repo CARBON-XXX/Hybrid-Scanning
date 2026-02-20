@@ -27,6 +27,13 @@ pub enum Request {
         target_url: String,
         timeout_ms: u64,
     },
+    #[serde(rename = "active_scan")]
+    ActiveScan {
+        target_url: String,
+        scan_types: Vec<String>, // "sqli", "xss", "cmdi"
+        concurrency: usize,
+        timeout_ms: u64,
+    },
     #[serde(rename = "shutdown")]
     Shutdown,
 }
@@ -60,6 +67,12 @@ pub enum Response {
         headers: Vec<(String, String)>,
         status_code: u16,
     },
+    #[serde(rename = "active_scan_result")]
+    ActiveScanResult {
+        target_url: String,
+        vulnerabilities: Vec<Vulnerability>,
+        scan_duration_ms: u64,
+    },
     #[serde(rename = "error")]
     Error {
         message: String,
@@ -92,6 +105,15 @@ pub struct Technology {
     pub name: String,
     pub version: Option<String>,
     pub confidence: f32,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Vulnerability {
+    pub name: String,
+    pub severity: String,
+    pub description: String,
+    pub evidence: String, // Payload or response snippet
+    pub location: String, // URL or parameter
 }
 
 /// 从 stdin 读取一行 JSON 请求

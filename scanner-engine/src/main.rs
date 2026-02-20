@@ -2,6 +2,7 @@ mod dir_buster;
 mod fingerprint;
 mod ipc;
 mod port_scanner;
+mod active_scanner;
 
 use ipc::{Request, Response};
 use std::time::Duration;
@@ -114,6 +115,28 @@ async fn handle_request(request: Request) -> Response {
             match fingerprint::identify(&target_url, timeout).await {
                 Ok(resp) => resp,
                 Err(e) => Response::Error { message: e },
+            }
+        }
+
+        Request::ActiveScan {
+            target_url,
+            scan_types,
+            concurrency,
+            timeout_ms,
+        } => {
+            info!("Starting active scan on {} (types: {:?})", target_url, scan_types);
+            let timeout = Duration::from_millis(timeout_ms);
+            let start = std::time::Instant::now();
+
+            let vulnerabilities = active_scanner::scan(&target_url, &scan_types, concurrency, timeout).await;
+            let duration = start.elapsed().as_millis() as u64;
+
+            info!("Active scan complete: {} vulnerabilities found in {}ms", vulnerabilities.len(), duration);
+
+            Response::ActiveScanResult {
+                target_url,
+                vulnerabilities,
+                scan_duration_ms: duration,
             }
         }
 

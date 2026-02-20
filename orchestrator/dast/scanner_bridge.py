@@ -39,7 +39,7 @@ class ScannerBridge:
             str(binary),
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+            stderr=None,  # Direct stderr to console for debugging
         )
 
     async def _send_and_receive(self, request: dict[str, Any]) -> dict[str, Any]:
@@ -147,6 +147,33 @@ class ScannerBridge:
         request = {
             "type": "fingerprint",
             "target_url": target_url,
+            "timeout_ms": timeout_ms or self._config.timeout_ms,
+        }
+        return await self._send_and_receive(request)
+
+    async def active_scan(
+        self,
+        target_url: str,
+        scan_types: Optional[list[str]] = None,
+        concurrency: Optional[int] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> dict[str, Any]:
+        """执行主动漏洞扫描 (DAST)
+
+        Args:
+            target_url: 目标 URL
+            scan_types: 扫描类型列表 ["sqli", "xss", "cmdi"]，默认全部
+            concurrency: 并发数
+            timeout_ms: 超时时间
+
+        Returns:
+            主动扫描结果字典，包含 vulnerabilities 列表
+        """
+        request = {
+            "type": "active_scan",
+            "target_url": target_url,
+            "scan_types": scan_types or ["all"],
+            "concurrency": concurrency or 10,  # 默认并发 10
             "timeout_ms": timeout_ms or self._config.timeout_ms,
         }
         return await self._send_and_receive(request)

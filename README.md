@@ -2,7 +2,20 @@
 
 **Rust Concurrency Layer + Python LLM Reasoning**
 
-A hybrid vulnerability scanning engine that combines Rust's high-concurrency network probing with Python-based static analysis and LLM-powered reasoning. Designed for developers to perform automated security assessments on their own projects.
+A **lightweight, all-in-one** vulnerability scanning engine that combines Rust's high-performance network probing with Python-based static analysis and DeepSeek V3.2 LLM reasoning.
+
+> **Why this engine?**
+> Instead of juggling 5 different tools (Nmap, Gobuster, SQLMap, Bandit, etc.), use **one lightweight CLI** to perform a full-stack security assessment.
+
+---
+
+## Key Features
+
+- **🚀 Lightweight & Fast**: Core scanning engine written in **Rust** (tokio-based async concurrency). No heavy JVM or complex database required.
+- **🛡️ Dual-Engine SAST**: Traditional Regex scanning (millisecond speed) + **DeepSeek LLM Deep Audit** (semantic understanding) to find logic bugs.
+- **⚡ Active DAST**: Built-in payloads for **SQL Injection, XSS, and Command Injection** detection.
+- **🧠 Intelligent Correlation**: LLM analyzes both static code and dynamic responses to reduce false positives.
+- **📂 One-Stop Shop**: Port scanning, Directory bruteforce, Fingerprinting, and Code Audit in a single workflow.
 
 ---
 
@@ -18,20 +31,22 @@ A hybrid vulnerability scanning engine that combines Rust's high-concurrency net
 +-------------+------------------------------------+
 |  LLM Client  |    Rust Scanner Engine            |
 |  DeepSeek    |    Port / Dir / Fingerprint       |
+|  V3.2        |    Active Vuln Scanner (SQLi/XSS) |
 +-------------+------------------------------------+
 |         Report Generator (Markdown + JSON)       |
 +--------------------------------------------------+
 ```
 
-### Core Components
+### Component Comparison
 
-| Layer | Technology | Responsibility |
-|-------|-----------|----------------|
-| **Scanner Engine** | Rust / tokio / reqwest | TCP port scanning, HTTP directory bruteforcing, web fingerprinting |
-| **SAST Engine** | Python / regex | 30+ vulnerability detection rules with CWE mapping |
-| **LLM Reasoning** | DeepSeek API (OpenAI SDK) | Cross-validation of findings, false positive reduction |
-| **Report Generator** | Jinja2 | Structured Markdown + JSON security assessment reports |
-| **IPC Protocol** | JSON Lines over stdio | Decoupled Rust-Python communication |
+| Feature | Hybrid Scanner | Traditional Tools |
+|---------|----------------|-------------------|
+| **Port Scan** | Rust Async (Fast) | Nmap |
+| **Dir Busting** | Rust Async (Fast) | Gobuster / Dirsearch |
+| **Fingerprint** | Built-in | WhatWeb / Wappalyzer |
+| **Active Scan** | Built-in (Lightweight) | SQLMap / Xray / OWASP ZAP |
+| **Code Audit** | Regex + LLM | SonarQube / Bandit / Semgrep |
+| **Report** | Unified (MD/JSON) | Fragmented |
 
 ---
 

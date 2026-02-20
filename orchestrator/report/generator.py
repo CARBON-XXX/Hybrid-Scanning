@@ -212,7 +212,13 @@ class ReportGenerator:
 
         # 保存文件
         timestamp = datetime.now(tz).strftime("%Y%m%d_%H%M%S")
-        safe_target = target.replace("://", "_").replace("/", "_").replace(":", "_")[:50]
+        
+        # Windows 文件名非法字符替换: < > : " / \ | ? *
+        safe_target = target
+        for char in ['<', '>', ':', '"', '/', '\\', '|', '?', '*']:
+            safe_target = safe_target.replace(char, "_")
+            
+        safe_target = safe_target[:50]
         filename = f"report_{safe_target}_{timestamp}.md"
         report_path = self._output_dir / filename
 

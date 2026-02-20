@@ -64,6 +64,7 @@ def cmd_dast(
     port_range: str = typer.Option("1-1024", "--port-range", help="端口范围（如 1-65535）"),
     dir_bust: bool = typer.Option(True, "--dirs", "-d", help="执行目录爆破"),
     fingerprint: bool = typer.Option(True, "--fingerprint", "-f", help="执行指纹识别"),
+    active_scan: bool = typer.Option(False, "--active", "-a", help="执行主动漏洞扫描 (SQLi, XSS, CMDi)"),
     output: Optional[str] = typer.Option(None, "--output", "-o", help="报告输出目录"),
 ) -> None:
     """DAST - 动态扫描分析 (需先编译 Rust 扫描引擎)"""
@@ -71,7 +72,7 @@ def cmd_dast(
     if output:
         config.report_output_dir = output
 
-    asyncio.run(_run_dast(config, target_url, port_scan, port_range, dir_bust, fingerprint))
+    asyncio.run(_run_dast(config, target_url, port_scan, port_range, dir_bust, fingerprint, active_scan))
 
 
 @app.command("full")
@@ -79,6 +80,7 @@ def cmd_full(
     target_url: str = typer.Argument(..., help="目标 URL"),
     project_dir: str = typer.Argument(..., help="项目源代码目录"),
     config_path: str = typer.Option("./config.yaml", "--config", "-c", help="配置文件路径"),
+    active_scan: bool = typer.Option(True, "--active", "-a", help="执行主动漏洞扫描 (SQLi, XSS, CMDi)"),
     output: Optional[str] = typer.Option(None, "--output", "-o", help="报告输出目录"),
 ) -> None:
     """FULL - 全量扫描 (SAST + DAST + LLM 交叉关联)"""
@@ -86,7 +88,7 @@ def cmd_full(
     if output:
         config.report_output_dir = output
 
-    asyncio.run(_run_full(config, target_url, project_dir))
+    asyncio.run(_run_full(config, target_url, project_dir, active_scan))
 
 
 @app.command("init")
@@ -153,6 +155,7 @@ async def _run_dast(
     port_range: str,
     do_dir_bust: bool,
     do_fingerprint: bool,
+    do_active_scan: bool,
 ) -> None:
     """执行 DAST 扫描"""
     _print_banner()
@@ -161,6 +164,7 @@ async def _run_dast(
     fingerprint_data: dict = {}
     open_ports: list = []
     found_paths: list = []
+    active_vulns: list = []
 
     try:
         async with ScannerBridge(config.scanner) as bridge:
@@ -187,13 +191,41 @@ async def _run_dast(
                 found_paths = result.get("found_paths", [])
                 console.print(f"    [+] {len(found_paths)} valid paths discovered")
 
+            if do_active_scan:
+                console.print("[bold][*] Active Vulnerability Scanning (SQLi, XSS, CMDi)...[/bold]")
+                # 针对发现的每个路径都尝试进行漏洞扫描（如果路径带有参数）
+                # 这里简化处理，直接对 target_url 进行扫描，如果 target_url 只是根目录，
+                # 可能需要结合 found_paths 中的结果。
+                # 暂时只扫描用户提供的 target_url (假设带有参数) + 发现的有参数的路径
+                
+                targets_to_scan = {target_url}
+                for path_entry in found_paths:
+                    path = path_entry.get("path", "")
+                    if "?" in path:
+                         # 拼接完整 URL
+                        full_url = target_url.rstrip("/") + "/" + path.lstrip("/")
+                        targets_to_scan.add(full_url)
+                
+                console.print(f"    [*] Scanning {len(targets_to_scan)} endpoints...")
+                
+                for url in targets_to_scan:
+                    res = await bridge.active_scan(url)
+                    vulns = res.get("vulnerabilities", [])
+                    if vulns:
+                        active_vulns.extend(vulns)
+                        for v in vulns:
+                            console.print(f"    [red][!] Found {v['name']} at {v['location']}[/red]")
+                
+                if not active_vulns:
+                     console.print("    [green][+] No active vulnerabilities found via payloads[/green]")
+
     except FileNotFoundError as e:
         console.print(f"[red][-] FATAL: {e}[/red]")
         return
 
     # LLM 分析
     dast_analysis = None
-    if config.llm.api_key and (fingerprint_data or open_ports or found_paths):
+    if config.llm.api_key and (fingerprint_data or open_ports or found_paths or active_vulns):
         console.print("[bold][*] LLM reasoning engine engaged...[/bold]")
         llm_client = DeepSeekClient(config.llm)
         reasoner = VulnReasoner(llm_client)
@@ -201,6 +233,7 @@ async def _run_dast(
             fingerprint=fingerprint_data,
             open_ports=open_ports,
             found_paths=found_paths,
+            active_vulns=active_vulns,
         )
 
     # 生成报告
@@ -215,7 +248,7 @@ async def _run_dast(
     console.print(f"\n[green][+] Report saved: {report_path}[/green]")
 
 
-async def _run_full(config: AppConfig, target_url: str, project_dir: str) -> None:
+async def _run_full(config: AppConfig, target_url: str, project_dir: str, do_active_scan: bool = True) -> None:
     """执行全量扫描：SAST + DAST + 交叉关联"""
     _print_banner()
     console.print(Panel("FULL ASSESSMENT :: SAST + DAST + LLM Correlation", style="bold magenta"))
@@ -242,6 +275,7 @@ async def _run_full(config: AppConfig, target_url: str, project_dir: str) -> Non
     fingerprint_data: dict = {}
     open_ports: list = []
     found_paths: list = []
+    active_vulns: list = []
     dast_analysis = None
 
     try:
@@ -252,6 +286,25 @@ async def _run_full(config: AppConfig, target_url: str, project_dir: str) -> Non
             result = await bridge.dir_bust(target_url)
             found_paths = result.get("found_paths", [])
             console.print(f"    [+] {len(found_paths)} valid paths discovered")
+
+            if do_active_scan:
+                console.print("[bold][*] Active Vulnerability Scanning...[/bold]")
+                targets_to_scan = {target_url}
+                for path_entry in found_paths:
+                    path = path_entry.get("path", "")
+                    if "?" in path:
+                        full_url = target_url.rstrip("/") + "/" + path.lstrip("/")
+                        targets_to_scan.add(full_url)
+                
+                console.print(f"    [*] Scanning {len(targets_to_scan)} endpoints...")
+                for url in targets_to_scan:
+                    res = await bridge.active_scan(url)
+                    vulns = res.get("vulnerabilities", [])
+                    if vulns:
+                        active_vulns.extend(vulns)
+                        for v in vulns:
+                            console.print(f"    [red][!] Found {v['name']} at {v['location']}[/red]")
+
     except FileNotFoundError as e:
         console.print(f"[yellow][!] DAST skipped: {e}[/yellow]")
 
@@ -261,11 +314,12 @@ async def _run_full(config: AppConfig, target_url: str, project_dir: str) -> Non
         console.print("\n[bold magenta]--- Phase 3: LLM Cross-Correlation ---[/bold magenta]")
         reasoner = VulnReasoner(llm_client)
 
-        if fingerprint_data or found_paths:
+        if fingerprint_data or found_paths or active_vulns:
             dast_analysis = await reasoner.analyze_dast_results(
                 fingerprint=fingerprint_data,
                 open_ports=open_ports,
                 found_paths=found_paths,
+                active_vulns=active_vulns,
             )
 
         if sast_dicts and dast_analysis:

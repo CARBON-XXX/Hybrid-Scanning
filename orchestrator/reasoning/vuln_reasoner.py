@@ -24,16 +24,54 @@ class VulnReasoner:
         fingerprint: dict[str, Any],
         open_ports: list[dict[str, Any]],
         found_paths: list[dict[str, Any]],
+        active_vulns: list[dict[str, Any]] = [],
     ) -> dict[str, Any]:
         """分析 DAST 扫描结果
 
-        将指纹、端口、路径信息送入 LLM，推理潜在攻击面和漏洞
+        将指纹、端口、路径信息以及主动扫描发现的漏洞送入 LLM，推理潜在攻击面和验证漏洞
         """
-        result_json = await self._llm.analyze_scan_results(
-            fingerprint_data=fingerprint,
-            open_ports=open_ports,
-            found_paths=found_paths,
-        )
+        # 如果有主动扫描发现的漏洞，直接整合进分析
+        context = {
+            "fingerprint": fingerprint,
+            "open_ports": open_ports,
+            "found_paths": found_paths,
+            "active_scan_vulnerabilities": active_vulns,
+        }
+
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "你是一名渗透测试专家。根据提供的 DAST 扫描结果（指纹、端口、路径、主动扫描漏洞），"
+                    "分析目标系统的安全姿态。特别关注主动扫描发现的漏洞，评估其危害和利用方式。"
+                    "输出 JSON 格式。"
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"DAST Scan Results:\n```json\n{json.dumps(context, indent=2, ensure_ascii=False)}\n```\n\n"
+                    "请分析上述结果，输出：\n"
+                    "```json\n"
+                    "{\n"
+                    '  "summary": "整体安全评估摘要",\n'
+                    '  "attack_surface": ["攻击面 1", "攻击面 2"],\n'
+                    '  "confirmed_vulnerabilities": [\n'
+                    "    {\n"
+                    '      "title": "漏洞名称",\n'
+                    '      "severity": "Critical|High|Medium|Low",\n'
+                    '      "description": "漏洞描述及利用方式",\n'
+                    '      "evidence": "相关证据（如 payload 或响应片段）"\n'
+                    "    }\n"
+                    "  ],\n"
+                    '  "recommendations": ["修复建议 1", "修复建议 2"]\n'
+                    "}\n"
+                    "```"
+                ),
+            },
+        ]
+
+        result_json = await self._llm.chat(messages, json_mode=True)
         try:
             return json.loads(result_json)
         except json.JSONDecodeError:
