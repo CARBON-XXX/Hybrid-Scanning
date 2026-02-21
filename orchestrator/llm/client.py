@@ -170,6 +170,44 @@ class DeepSeekClient:
         messages = PromptTemplates.scan_analysis(fingerprint_data, open_ports, found_paths)
         return await self.chat(messages, json_mode=True)
 
+    async def analyze_dependencies(
+        self,
+        dependencies: dict[str, str],
+        ecosystem: str,
+    ) -> str:
+        """SCA 依赖安全分析
+
+        Args:
+            dependencies: 依赖包名和版本号字典
+            ecosystem: 生态系统名称 (e.g. "npm", "pypi")
+
+        Returns:
+            SCA 分析结果（JSON 格式字符串）
+        """
+        from .prompts import PromptTemplates
+
+        messages = PromptTemplates.sca_analysis(dependencies, ecosystem)
+        return await self.chat(messages, json_mode=True)
+
+    async def audit_iac_config(
+        self,
+        content: str,
+        file_type: str,
+    ) -> str:
+        """IaC 基础设施代码审计
+
+        Args:
+            content: 配置文件内容
+            file_type: 文件类型 (e.g. "Dockerfile", "Kubernetes Manifest")
+
+        Returns:
+            IaC 审计结果（JSON 格式字符串）
+        """
+        from .prompts import PromptTemplates
+
+        messages = PromptTemplates.iac_analysis(content, file_type)
+        return await self.chat(messages, json_mode=True)
+
     async def generate_report_summary(self, findings: list[dict[str, Any]]) -> str:
         """使用 LLM 生成漏洞报告摘要
 

@@ -19,10 +19,12 @@ from rich.table import Table
 
 from orchestrator.config import AppConfig
 from orchestrator.dast.scanner_bridge import ScannerBridge
+from orchestrator.iac.scanner import DockerfileScanner
 from orchestrator.llm.client import DeepSeekClient
 from orchestrator.reasoning.vuln_reasoner import VulnReasoner
 from orchestrator.report.generator import ReportGenerator
 from orchestrator.sast.analyzer import SASTAnalyzer
+from orchestrator.sca.parser import DependencyParser
 
 app = typer.Typer(
     name="hybrid-scanner",
@@ -106,8 +108,116 @@ def cmd_init(
 # 内部异步执行逻辑
 # ============================================================
 
+async def _run_sca(config: AppConfig, project_dir: str, llm_client: Optional[DeepSeekClient]) -> list[dict]:
+    """执行 SCA 依赖安全扫描"""
+    if not config.sca.enabled:
+        return []
+    
+    console.print(Panel("Phase: SCA (Software Composition Analysis)", style="bold cyan"))
+    findings = []
+    p_dir = Path(project_dir)
+    
+    # 1. 发现依赖文件
+    dep_files = DependencyParser.detect_files(p_dir)
+    if not dep_files:
+        console.print("[dim]No dependency files found (package.json, requirements.txt)[/dim]")
+        return []
+        
+    console.print(f"[*] Found {len(dep_files)} dependency files")
+    
+    for f in dep_files:
+        ecosystem = "npm" if f.name == "package.json" else "pypi"
+        deps = {}
+        if ecosystem == "npm":
+            deps = DependencyParser.parse_package_json(f)
+        else:
+            deps = DependencyParser.parse_requirements_txt(f)
+            
+        if not deps:
+            continue
+            
+        console.print(f"    [+] {f.name}: {len(deps)} dependencies parsed")
+        
+        # 仅当有 LLM 时进行漏洞分析
+        if llm_client and deps:
+            console.print(f"    [*] Analyzing {f.name} with LLM...")
+            try:
+                result_json = await llm_client.analyze_dependencies(deps, ecosystem)
+                data = json.loads(result_json)
+                for item in data.get("findings", []):
+                    findings.append({
+                        "rule_id": "SCA-VULN",
+                        "title": item.get("title", "Known Vulnerability"),
+                        "severity": item.get("severity", "High"),
+                        "file_path": str(f),
+                        "line_start": 0,
+                        "line_end": 0,
+                        "code_snippet": f"{item.get('package')}@{item.get('version')}",
+                        "description": item.get("description", "") + f"\nVuln ID: {item.get('vuln_id')}",
+                        "remediation": item.get("remediation", ""),
+                        "source": "llm-sca",
+                        "llm_verified": True
+                    })
+            except Exception as e:
+                console.print(f"[red][!] SCA LLM analysis failed for {f.name}: {e}[/red]")
+    
+    console.print(f"    [+] SCA identified {len(findings)} issues")
+    return findings
+
+
+async def _run_iac(config: AppConfig, project_dir: str, llm_client: Optional[DeepSeekClient]) -> list[dict]:
+    """执行 IaC 基础设施即代码扫描"""
+    if not config.iac.enabled:
+        return []
+
+    console.print(Panel("Phase: IaC (Infrastructure as Code)", style="bold yellow"))
+    findings = []
+    p_dir = Path(project_dir)
+    
+    scanner = DockerfileScanner()
+    files = scanner.detect_files(p_dir)
+    
+    if not files:
+        console.print("[dim]No IaC files found (Dockerfile)[/dim]")
+        return []
+
+    console.print(f"[*] Found {len(files)} IaC files")
+    
+    for f in files:
+        # 1. 正则规则扫描
+        regex_findings = scanner.scan(f)
+        findings.extend(regex_findings)
+        
+        # 2. LLM 深度审计
+        if llm_client:
+            console.print(f"    [*] Auditing {f.name} with LLM...")
+            try:
+                content = f.read_text(encoding="utf-8")
+                result_json = await llm_client.audit_iac_config(content, "Dockerfile")
+                data = json.loads(result_json)
+                for item in data.get("findings", []):
+                    findings.append({
+                        "rule_id": item.get("id", "IAC-LLM"),
+                        "title": item.get("title", "IaC Misconfiguration"),
+                        "severity": item.get("severity", "Medium"),
+                        "file_path": str(f),
+                        "line_start": item.get("line", 0),
+                        "line_end": item.get("line", 0),
+                        "code_snippet": "...",
+                        "description": item.get("description", ""),
+                        "remediation": item.get("remediation", ""),
+                        "source": "llm-iac",
+                        "llm_verified": True
+                    })
+            except Exception as e:
+                 console.print(f"[red][!] IaC LLM audit failed for {f.name}: {e}[/red]")
+
+    console.print(f"    [+] IaC identified {len(findings)} issues")
+    return findings
+
+
 async def _run_sast(config: AppConfig, project_dir: str, use_llm: bool) -> None:
-    """执行 SAST 扫描"""
+    """执行 SAST 扫描 (包含 SCA + IaC)"""
     _print_banner()
     console.print(Panel("SAST :: Static Application Security Testing", style="bold blue"))
 
@@ -116,33 +226,48 @@ async def _run_sast(config: AppConfig, project_dir: str, use_llm: bool) -> None:
     files = analyzer.collect_files(project_dir)
     console.print(f"[*] Collected {len(files)} source files from [bold]{project_dir}[/bold]")
 
+    llm_client = None
     if use_llm and config.llm.api_key:
         llm_client = DeepSeekClient(config.llm)
         console.print(f"[*] Mode: [bold]Dual-Engine[/bold] (Regex + LLM Deep Audit) [{llm_client.model_name}]")
+    elif use_llm and not config.llm.api_key:
+        console.print("[yellow][!] --llm specified but no API key in config.yaml[/yellow]")
+        console.print("[*] Mode: regex-only scan")
+    else:
+        console.print("[*] Mode: regex-only scan")
 
+    # 1. Code SAST
+    if llm_client:
         def _llm_log(msg: str) -> None:
             console.print(f"[dim]{msg}[/dim]")
-
-        findings = await analyzer.scan_project_with_llm(
+        sast_findings = await analyzer.scan_project_with_llm(
             project_dir, llm_client, on_progress=_llm_log,
         )
     else:
-        if use_llm and not config.llm.api_key:
-            console.print("[yellow][!] --llm specified but no API key in config.yaml[/yellow]")
-        console.print("[*] Mode: regex-only scan")
-        findings = analyzer.scan_project(project_dir)
+        sast_findings = analyzer.scan_project(project_dir)
 
-    console.print(f"[bold][+] Scan complete: {len(findings)} potential issues identified[/bold]")
+    # 转换 SAST findings 为 dict
+    all_findings = [f.to_dict() if hasattr(f, "to_dict") else f for f in sast_findings]
 
-    _print_findings_table(findings)
+    # 2. SCA
+    if config.sca.enabled:
+        sca_findings = await _run_sca(config, project_dir, llm_client)
+        all_findings.extend(sca_findings)
+
+    # 3. IaC
+    if config.iac.enabled:
+        iac_findings = await _run_iac(config, project_dir, llm_client)
+        all_findings.extend(iac_findings)
+
+    console.print(f"[bold][+] Scan complete: {len(all_findings)} potential issues identified[/bold]")
+
+    _print_findings_table(all_findings)
 
     # 生成报告
-    llm_client = DeepSeekClient(config.llm) if config.llm.api_key else None
     generator = ReportGenerator(config.report_output_dir, llm_client)
-    findings_dicts = [f.to_dict() if hasattr(f, "to_dict") else f for f in findings]
     report_path = await generator.generate(
         target=project_dir,
-        findings=findings_dicts,
+        findings=all_findings,
         config=config.model_dump(),
     )
     console.print(f"\n[green][+] Report saved: {report_path}[/green]")
@@ -268,7 +393,18 @@ async def _run_full(config: AppConfig, target_url: str, project_dir: str, do_act
         llm_client = None
 
     sast_dicts = [f.to_dict() if hasattr(f, "to_dict") else f for f in sast_findings]
-    console.print(f"    [+] SAST identified {len(sast_dicts)} potential issues")
+    
+    # SCA
+    if config.sca.enabled:
+        sca_findings = await _run_sca(config, project_dir, llm_client)
+        sast_dicts.extend(sca_findings)
+
+    # IaC
+    if config.iac.enabled:
+        iac_findings = await _run_iac(config, project_dir, llm_client)
+        sast_dicts.extend(iac_findings)
+
+    console.print(f"    [+] Combined SAST/SCA/IaC identified {len(sast_dicts)} potential issues")
 
     # ---- DAST ----
     console.print("\n[bold green]--- Phase 2: DAST Dynamic Scanning ---[/bold green]")
@@ -383,6 +519,9 @@ def _print_findings_table(findings: list) -> None:
         "both": "[bold green]BOTH[/bold green]",
         "regex": "[dim]REGEX[/dim]",
         "llm": "[bold cyan]LLM[/bold cyan]",
+        "llm-sca": "[bold magenta]SCA-LLM[/bold magenta]",
+        "llm-iac": "[bold yellow]IaC-LLM[/bold yellow]",
+        "iac": "[yellow]IaC[/yellow]",
     }
 
     for f in findings:
@@ -393,15 +532,20 @@ def _print_findings_table(findings: list) -> None:
 
         sev = d.get("severity", "Info")
         color = severity_colors.get(sev, "white")
+        
+        # 处理 Source 显示
         src = d.get("source", "regex")
+        if d.get("type") == "IaC" and "source" not in d:
+            src = "iac"
+            
         src_display = source_styles.get(src, src)
 
         table.add_row(
             d.get("rule_id", ""),
             f"[{color}]{sev}[/{color}]",
             d.get("title", ""),
-            d.get("file_path", "")[-30:],
-            str(d.get("line_start", "")),
+            str(d.get("file_path", ""))[-30:],
+            str(d.get("line_start", "") or d.get("line", "")),
             src_display,
         )
 

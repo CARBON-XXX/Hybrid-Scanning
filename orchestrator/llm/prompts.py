@@ -153,6 +153,65 @@ class PromptTemplates:
         ]
 
     @staticmethod
+    def sca_analysis(dependencies: dict[str, str], ecosystem: str) -> list[dict[str, str]]:
+        """SCA 依赖安全分析 Prompt - 让 LLM 识别已知漏洞"""
+        user_content = (
+            f"Please analyze the following {ecosystem} dependencies for known security vulnerabilities.\n"
+            "Dependencies:\n"
+            f"```json\n{json.dumps(dependencies, indent=2)}\n```\n\n"
+            "Identify any packages with known high-severity vulnerabilities (CVEs).\n"
+            "Output JSON:\n"
+            "```json\n"
+            "{\n"
+            '  "findings": [\n'
+            "    {\n"
+            '      "package": "package-name",\n'
+            '      "version": "1.0.0",\n'
+            '      "vuln_id": "CVE-xxxx-xxxx",\n'
+            '      "title": "Vulnerability Title",\n'
+            '      "severity": "Critical|High|Medium",\n'
+            '      "description": "Brief description",\n'
+            '      "remediation": "Upgrade to version x.x.x"\n'
+            "    }\n"
+            "  ]\n"
+            "}\n"
+            "```\n"
+            "If no high-risk vulnerabilities are known for these specific versions, return an empty findings list."
+        )
+        return [
+            {"role": "system", "content": PromptTemplates.SYSTEM_ROLE},
+            {"role": "user", "content": user_content},
+        ]
+
+    @staticmethod
+    def iac_analysis(content: str, file_type: str) -> list[dict[str, str]]:
+        """IaC 基础设施代码审计 Prompt"""
+        user_content = (
+            f"Audit the following {file_type} configuration for security misconfigurations.\n"
+            "Focus on: Privilege escalation, secret exposure, resource limits, and network exposure.\n\n"
+            f"```{file_type}\n{content}\n```\n\n"
+            "Output JSON:\n"
+            "```json\n"
+            "{\n"
+            '  "findings": [\n'
+            "    {\n"
+            '      "id": "IAC-001",\n'
+            '      "severity": "High",\n'
+            '      "line": 10,\n'
+            '      "title": "Issue Title",\n'
+            '      "description": "...",\n'
+            '      "remediation": "..."\n'
+            "    }\n"
+            "  ]\n"
+            "}\n"
+            "```"
+        )
+        return [
+            {"role": "system", "content": PromptTemplates.SYSTEM_ROLE},
+            {"role": "user", "content": user_content},
+        ]
+
+    @staticmethod
     def report_summary(findings: list[dict[str, Any]]) -> list[dict[str, str]]:
         """生成报告摘要的 Prompt"""
         user_content = (

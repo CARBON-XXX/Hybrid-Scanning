@@ -42,11 +42,25 @@ class SASTConfig(BaseModel):
     )
 
 
+class SCAConfig(BaseModel):
+    """SCA 依赖安全配置"""
+    enabled: bool = Field(default=True, description="是否启用 SCA 扫描")
+    ignored_packages: list[str] = Field(default=[], description="忽略的包名")
+
+
+class IaCConfig(BaseModel):
+    """IaC 基础设施安全配置"""
+    enabled: bool = Field(default=True, description="是否启用 IaC 扫描")
+    dockerfile_patterns: list[str] = Field(default=["Dockerfile*"], description="Dockerfile 文件名模式")
+
+
 class AppConfig(BaseModel):
     """应用主配置"""
     llm: LLMConfig = Field(default_factory=LLMConfig)
     scanner: ScannerConfig = Field(default_factory=ScannerConfig)
     sast: SASTConfig = Field(default_factory=SASTConfig)
+    sca: SCAConfig = Field(default_factory=SCAConfig)
+    iac: IaCConfig = Field(default_factory=IaCConfig)
     report_output_dir: str = Field(default="./reports", description="报告输出目录")
 
     @classmethod

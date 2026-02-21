@@ -309,6 +309,46 @@ DAST :: Dynamic Application Security Testing
 
 ---
 
+## Roadmap: The Path to Full Coverage
+
+Hybrid 目前处于 **v0.1.0** (MVP) 阶段，核心是验证 "Rust Async + LLM Reasoning" 的架构优势。
+为了真正颠覆行业，我们需要在 **v1.0** 前完成以下全栈覆盖：
+
+### Phase 1: 依赖与供应链安全 (SCA) [v0.2]
+> 替代工具: Snyk, OWASP Dependency-Check, npm audit
+
+- [ ] **Lockfile 解析器 (Rust)**: 秒级解析 `package-lock.json`, `poetry.lock`, `Cargo.lock`, `go.sum`。
+- [ ] **漏洞数据库集成**: 离线集成 OSV (Open Source Vulnerabilities) 数据库，无网环境也能查 CVE。
+- [ ] **恶意包检测**: 配合 LLM 分析 `setup.py` / `package.json` 中的反常 install scripts。
+
+### Phase 2: 基础设施与云原生 (IaC & Cloud) [v0.3]
+> 替代工具: Checkov, Tfsec, Trivy, Kics
+
+- [ ] **Dockerfile 扫描**: 检测 `USER root`, `apk add` 无版本锁定等配置问题。
+- [ ] **Kubernetes Manifests**: 检测特权容器、资源限制缺失 (Regex + LLM)。
+- [ ] **Terraform/AWS**: 审计 S3 桶公开、Security Group 0.0.0.0 等云配置风险。
+
+### Phase 3: 深度 API 安全与模糊测试 (API Security) [v0.4]
+> 替代工具: Postman, Schemathesis, RESTler
+
+- [ ] **OpenAPI/Swagger 解析**: 自动生成测试用例。
+- [ ] **BOLA/IDOR 专项检测**: 结合 LLM 理解 API 语义（例如：识别 `user_id` 并尝试遍历）。
+- [ ] **Auth 鉴权分析**: 自动检测未授权访问端点。
+
+### Phase 4: 高级动态扫描 (Advanced DAST) [v0.5]
+> 替代工具: Burp Suite Crawler, Selenium/Puppeteer
+
+- [ ] **Headless Browser 集成**: 使用 Rust binding (如 `chromiumoxide`) 抓取 SPA/React 页面。
+- [ ] **DOM XSS 动态验证**: 真实的浏览器环境执行 Payload。
+- [ ] **登录态维持**: 支持录制登录包/Cookie 保持。
+
+### Phase 5: 企业级特性 [v1.0]
+- [ ] **CI/CD 集成**: GitHub Actions / GitLab CI 插件。
+- [ ] **IDE 插件**: VS Code 实时扫描插件。
+- [ ] **PDF/HTML 报表**: 审计合规级导出。
+
+---
+
 ## Technology Stack
 
 | Component | Technologies |
