@@ -33,3 +33,8 @@ vuln-app/*.log
 
 # Secrets - DO NOT commit real API keys
 # config.yaml is tracked with placeholder key
+
+# Target Repositories
+QPWFLHSCLUB/
+multi-lang-test/
+vuln-app/

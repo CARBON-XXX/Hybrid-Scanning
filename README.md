@@ -188,6 +188,9 @@ python -m orchestrator.main dast http://target:8080
 # DAST - 主动漏洞扫描 (SQLi/XSS/CMDi)
 python -m orchestrator.main dast "http://target:8080/search?q=test" --active
 
+# API - 接口安全测试 (OpenAPI/Swagger)
+python -m orchestrator.main api ./openapi.yaml --target-url http://localhost:5000/api --llm
+
 # Full - SAST + DAST + 主动扫描 + LLM 关联 (一条命令搞定)
 python -m orchestrator.main full http://target:8080 ./your-project --active
 ```
@@ -319,23 +322,23 @@ Hybrid 目前处于 **v0.1.0** (MVP) 阶段，核心是验证 "Rust Async + LLM 
 ### Phase 1: 依赖与供应链安全 (SCA) [v0.2]
 > 替代工具: Snyk, OWASP Dependency-Check, npm audit
 
-- [ ] **Lockfile 解析器 (Rust)**: 秒级解析 `package-lock.json`, `poetry.lock`, `Cargo.lock`, `go.sum`。
-- [ ] **漏洞数据库集成**: 离线集成 OSV (Open Source Vulnerabilities) 数据库，无网环境也能查 CVE。
-- [ ] **恶意包检测**: 配合 LLM 分析 `setup.py` / `package.json` 中的反常 install scripts。
+- [x] **多语言依赖解析**: 支持 `package.json`, `requirements.txt`, `go.mod`, `Cargo.toml`, `pom.xml`, `.csproj`。
+- [x] **漏洞数据库集成**: 利用 LLM 知识库实时识别已知 CVE (无需离线库)。
+- [x] **恶意包检测**: 配合 LLM 分析依赖文件中的反常引用。
 
 ### Phase 2: 基础设施与云原生 (IaC & Cloud) [v0.3]
 > 替代工具: Checkov, Tfsec, Trivy, Kics
 
-- [ ] **Dockerfile 扫描**: 检测 `USER root`, `apk add` 无版本锁定等配置问题。
-- [ ] **Kubernetes Manifests**: 检测特权容器、资源限制缺失 (Regex + LLM)。
+- [x] **Dockerfile 扫描**: 检测 `USER root`, `apk add` 无版本锁定等配置问题 (Regex + LLM)。
+- [x] **Kubernetes Manifests**: 检测特权容器、资源限制缺失、敏感挂载 (Regex + LLM)。
 - [ ] **Terraform/AWS**: 审计 S3 桶公开、Security Group 0.0.0.0 等云配置风险。
 
 ### Phase 3: 深度 API 安全与模糊测试 (API Security) [v0.4]
 > 替代工具: Postman, Schemathesis, RESTler
 
-- [ ] **OpenAPI/Swagger 解析**: 自动生成测试用例。
-- [ ] **BOLA/IDOR 专项检测**: 结合 LLM 理解 API 语义（例如：识别 `user_id` 并尝试遍历）。
-- [ ] **Auth 鉴权分析**: 自动检测未授权访问端点。
+- [x] **OpenAPI/Swagger 解析**: 解析 spec 文档并提取端点信息。
+- [x] **智能 Payload 生成**: 结合 LLM 生成针对性的 BOLA/IDOR 测试用例。
+- [x] **Auth 鉴权分析**: 自动检测未授权访问端点。
 
 ### Phase 4: 高级动态扫描 (Advanced DAST) [v0.5]
 > 替代工具: Burp Suite Crawler, Selenium/Puppeteer

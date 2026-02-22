@@ -208,6 +208,20 @@ class DeepSeekClient:
         messages = PromptTemplates.iac_analysis(content, file_type)
         return await self.chat(messages, json_mode=True)
 
+    async def generate_api_payloads(self, endpoint: dict[str, Any]) -> str:
+        """生成 API 安全测试 Payload
+
+        Args:
+            endpoint: API 端点定义字典
+
+        Returns:
+            测试用例列表（JSON 格式字符串）
+        """
+        from .prompts import PromptTemplates
+
+        messages = PromptTemplates.api_security_test(endpoint)
+        return await self.chat(messages, json_mode=True)
+
     async def generate_report_summary(self, findings: list[dict[str, Any]]) -> str:
         """使用 LLM 生成漏洞报告摘要
 

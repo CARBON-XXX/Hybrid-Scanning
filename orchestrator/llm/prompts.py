@@ -212,6 +212,35 @@ class PromptTemplates:
         ]
 
     @staticmethod
+    def api_security_test(endpoint: dict[str, Any]) -> list[dict[str, str]]:
+        """API 安全测试 Payload 生成 Prompt"""
+        user_content = (
+            "Analyze the following API endpoint definition and generate security test payloads.\n"
+            "Focus on: BOLA/IDOR, Mass Assignment, Broken Authentication, and Injection.\n\n"
+            f"Endpoint: {endpoint['method']} {endpoint['path']}\n"
+            f"Summary: {endpoint.get('summary', 'No summary')}\n"
+            f"Parameters: {json.dumps(endpoint.get('parameters', []), indent=2)}\n"
+            f"Body: {json.dumps(endpoint.get('request_body', {}), indent=2)}\n\n"
+            "Output JSON:\n"
+            "```json\n"
+            "{\n"
+            '  "test_cases": [\n'
+            "    {\n"
+            '      "name": "BOLA Test - ID Traversal",\n'
+            '      "description": "Try accessing resource with ID 1 instead of current user ID",\n'
+            '      "payload": {"id": 1},\n'
+            '      "risk": "High"\n'
+            "    }\n"
+            "  ]\n"
+            "}\n"
+            "```"
+        )
+        return [
+            {"role": "system", "content": PromptTemplates.SYSTEM_ROLE},
+            {"role": "user", "content": user_content},
+        ]
+
+    @staticmethod
     def report_summary(findings: list[dict[str, Any]]) -> list[dict[str, str]]:
         """生成报告摘要的 Prompt"""
         user_content = (

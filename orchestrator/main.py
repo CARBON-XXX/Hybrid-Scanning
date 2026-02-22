@@ -19,7 +19,9 @@ from rich.table import Table
 
 from orchestrator.config import AppConfig
 from orchestrator.dast.scanner_bridge import ScannerBridge
-from orchestrator.iac.scanner import DockerfileScanner
+from orchestrator.iac.scanner import DockerfileScanner, KubernetesScanner
+from orchestrator.api.parser import OpenAPIParser
+from orchestrator.api.scanner import APIScanner
 from orchestrator.llm.client import DeepSeekClient
 from orchestrator.reasoning.vuln_reasoner import VulnReasoner
 from orchestrator.report.generator import ReportGenerator
@@ -93,6 +95,22 @@ def cmd_full(
     asyncio.run(_run_full(config, target_url, project_dir, active_scan))
 
 
+@app.command("api")
+def cmd_api(
+    spec_path: str = typer.Argument(..., help="OpenAPI/Swagger 规范文件路径"),
+    target_url: Optional[str] = typer.Option(None, help="目标 API 基础 URL (覆盖 spec 中的 server)"),
+    config_path: str = typer.Option("./config.yaml", "--config", "-c", help="配置文件路径"),
+    use_llm: bool = typer.Option(False, "--llm", help="启用 LLM 辅助生成 Payload"),
+    output: Optional[str] = typer.Option(None, "--output", "-o", help="报告输出目录"),
+) -> None:
+    """API - 接口安全测试 (BOLA, IDOR, Injection)"""
+    config = load_config(config_path)
+    if output:
+        config.report_output_dir = output
+    
+    asyncio.run(_run_api(config, spec_path, target_url, use_llm))
+
+
 @app.command("init")
 def cmd_init(
     config_path: str = typer.Option("./config.yaml", "--config", "-c", help="配置文件路径"),
@@ -107,6 +125,53 @@ def cmd_init(
 # ============================================================
 # 内部异步执行逻辑
 # ============================================================
+
+async def _run_api(config: AppConfig, spec_path: str, target_url: Optional[str], use_llm: bool) -> None:
+    """执行 API 安全扫描"""
+    _print_banner()
+    console.print(Panel("API Security Testing :: BOLA/IDOR + Logic Analysis", style="bold magenta"))
+
+    try:
+        parser = OpenAPIParser(spec_path)
+        endpoints = parser.get_endpoints()
+        base_url = target_url or parser.get_base_url()
+        
+        if not base_url:
+            console.print("[red][!] No base URL found in spec or provided via --target-url[/red]")
+            return
+
+        console.print(f"[*] Parsed {len(endpoints)} endpoints from [bold]{spec_path}[/bold]")
+        console.print(f"[*] Target Base URL: [bold]{base_url}[/bold]")
+
+        llm_client = None
+        if use_llm and config.llm.api_key:
+            llm_client = DeepSeekClient(config.llm)
+            console.print(f"[*] LLM Logic Analysis: [green]Enabled ({llm_client.model_name})[/green]")
+        elif use_llm and not config.llm.api_key:
+            console.print("[yellow][!] --llm specified but no API key in config.yaml[/yellow]")
+            console.print("[*] LLM Logic Analysis: [dim]Disabled[/dim]")
+        else:
+            console.print("[*] LLM Logic Analysis: [dim]Disabled[/dim]")
+
+        scanner = APIScanner(base_url, llm_client)
+        findings = await scanner.scan_spec(endpoints)
+        await scanner.close()
+
+        console.print(f"[bold][+] API Scan complete: {len(findings)} potential issues identified[/bold]")
+        _print_findings_table(findings)
+
+        # Generate Report
+        generator = ReportGenerator(config.report_output_dir, llm_client)
+        report_path = await generator.generate(
+            target=f"API: {base_url}",
+            findings=findings,
+            config=config.model_dump(),
+        )
+        console.print(f"\n[green][+] Report saved: {report_path}[/green]")
+
+    except Exception as e:
+        console.print(f"[red][-] API Scan Failed: {e}[/red]")
+
 
 async def _run_sca(config: AppConfig, project_dir: str, llm_client: Optional[DeepSeekClient]) -> list[dict]:
     """执行 SCA 依赖安全扫描"""
@@ -192,43 +257,78 @@ async def _run_iac(config: AppConfig, project_dir: str, llm_client: Optional[Dee
     findings = []
     p_dir = Path(project_dir)
     
-    scanner = DockerfileScanner()
-    files = scanner.detect_files(p_dir)
+    # ---- Dockerfile Scanning ----
+    docker_scanner = DockerfileScanner()
+    docker_files = docker_scanner.detect_files(p_dir)
     
-    if not files:
-        console.print("[dim]No IaC files found (Dockerfile)[/dim]")
-        return []
+    if docker_files:
+        console.print(f"[*] Found {len(docker_files)} Dockerfiles")
+        for f in docker_files:
+            # 1. 正则规则扫描
+            regex_findings = docker_scanner.scan(f)
+            findings.extend(regex_findings)
+            
+            # 2. LLM 深度审计
+            if llm_client:
+                console.print(f"    [*] Auditing {f.name} with LLM...")
+                try:
+                    content = f.read_text(encoding="utf-8")
+                    result_json = await llm_client.audit_iac_config(content, "Dockerfile")
+                    data = json.loads(result_json)
+                    for item in data.get("findings", []):
+                        findings.append({
+                            "rule_id": item.get("id", "IAC-LLM"),
+                            "title": item.get("title", "IaC Misconfiguration"),
+                            "severity": item.get("severity", "Medium"),
+                            "file_path": str(f),
+                            "line_start": item.get("line", 0),
+                            "line_end": item.get("line", 0),
+                            "code_snippet": "...",
+                            "description": item.get("description", ""),
+                            "remediation": item.get("remediation", ""),
+                            "source": "llm-iac",
+                            "llm_verified": True
+                        })
+                except Exception as e:
+                     console.print(f"[red][!] IaC LLM audit failed for {f.name}: {e}[/red]")
 
-    console.print(f"[*] Found {len(files)} IaC files")
-    
-    for f in files:
-        # 1. 正则规则扫描
-        regex_findings = scanner.scan(f)
-        findings.extend(regex_findings)
-        
-        # 2. LLM 深度审计
-        if llm_client:
-            console.print(f"    [*] Auditing {f.name} with LLM...")
-            try:
-                content = f.read_text(encoding="utf-8")
-                result_json = await llm_client.audit_iac_config(content, "Dockerfile")
-                data = json.loads(result_json)
-                for item in data.get("findings", []):
-                    findings.append({
-                        "rule_id": item.get("id", "IAC-LLM"),
-                        "title": item.get("title", "IaC Misconfiguration"),
-                        "severity": item.get("severity", "Medium"),
-                        "file_path": str(f),
-                        "line_start": item.get("line", 0),
-                        "line_end": item.get("line", 0),
-                        "code_snippet": "...",
-                        "description": item.get("description", ""),
-                        "remediation": item.get("remediation", ""),
-                        "source": "llm-iac",
-                        "llm_verified": True
-                    })
-            except Exception as e:
-                 console.print(f"[red][!] IaC LLM audit failed for {f.name}: {e}[/red]")
+    # ---- Kubernetes Scanning ----
+    k8s_scanner = KubernetesScanner()
+    k8s_files = k8s_scanner.detect_files(p_dir)
+
+    if k8s_files:
+        console.print(f"[*] Found {len(k8s_files)} Kubernetes manifests")
+        for f in k8s_files:
+            # 1. Regex Scan
+            regex_findings = k8s_scanner.scan(f)
+            findings.extend(regex_findings)
+
+            # 2. LLM Audit
+            if llm_client:
+                console.print(f"    [*] Auditing {f.name} with LLM...")
+                try:
+                    content = f.read_text(encoding="utf-8")
+                    result_json = await llm_client.audit_iac_config(content, "Kubernetes Manifest")
+                    data = json.loads(result_json)
+                    for item in data.get("findings", []):
+                        findings.append({
+                            "rule_id": item.get("id", "IAC-K8S-LLM"),
+                            "title": item.get("title", "K8s Misconfiguration"),
+                            "severity": item.get("severity", "Medium"),
+                            "file_path": str(f),
+                            "line_start": item.get("line", 0),
+                            "line_end": item.get("line", 0),
+                            "code_snippet": "...",
+                            "description": item.get("description", ""),
+                            "remediation": item.get("remediation", ""),
+                            "source": "llm-iac",
+                            "llm_verified": True
+                        })
+                except Exception as e:
+                     console.print(f"[red][!] K8s LLM audit failed for {f.name}: {e}[/red]")
+
+    if not findings:
+        console.print("[dim]No IaC issues found[/dim]")
 
     console.print(f"    [+] IaC identified {len(findings)} issues")
     return findings
@@ -539,6 +639,7 @@ def _print_findings_table(findings: list) -> None:
         "llm": "[bold cyan]LLM[/bold cyan]",
         "llm-sca": "[bold magenta]SCA-LLM[/bold magenta]",
         "llm-iac": "[bold yellow]IaC-LLM[/bold yellow]",
+        "llm-api": "[bold blue]API-LLM[/bold blue]",
         "iac": "[yellow]IaC[/yellow]",
     }
 
