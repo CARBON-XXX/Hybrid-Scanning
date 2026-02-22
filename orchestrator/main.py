@@ -85,12 +85,15 @@ def cmd_full(
     project_dir: str = typer.Argument(..., help="项目源代码目录"),
     config_path: str = typer.Option("./config.yaml", "--config", "-c", help="配置文件路径"),
     active_scan: bool = typer.Option(True, "--active", "-a", help="执行主动漏洞扫描 (SQLi, XSS, CMDi)"),
+    reasoning: bool = typer.Option(False, "--reasoning", "-r", help="使用 DeepSeek-V3.2 思考模式"),
     output: Optional[str] = typer.Option(None, "--output", "-o", help="报告输出目录"),
 ) -> None:
     """FULL - 全量扫描 (SAST + DAST + LLM 交叉关联)"""
     config = load_config(config_path)
     if output:
         config.report_output_dir = output
+    if reasoning:
+        config.llm.model = "deepseek-reasoner"
 
     asyncio.run(_run_full(config, target_url, project_dir, active_scan))
 
