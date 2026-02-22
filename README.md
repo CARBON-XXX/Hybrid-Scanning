@@ -39,7 +39,7 @@ Hybrid Scanner 用 **一个 Rust 二进制 + 一个 Python CLI** 替代它们全
 | **误报处理** | LLM 自动验证 | 人工标记 | 人工标记 | 人工标记 | ML 辅助 |
 | **自定义规则** | 正则 + Prompt | Java DSL | YAML | Python 插件 | 不支持 |
 | **价格** | **免费** | 社区版免费/企业版 $15k+/yr | 免费/团队版 $40+/mo | 免费 | 免费/Pro $25+/mo |
-| **语言支持** | Python/JS/PHP/Java | 30+ | 30+ | 仅 Python | 10+ |
+| **语言支持** | **8+ 主流语言** (Py/JS/Go/Rust/C++/Java/C#/PHP) | 30+ | 30+ | 仅 Python | 10+ |
 
 **核心优势**: Hybrid 是目前唯一将 **LLM 深度语义审计** 内置到 SAST 流程中的开源工具，可以发现纯规则引擎无法覆盖的 CSRF、逻辑越权、不安全的业务流等问题。
 
@@ -200,8 +200,8 @@ The SAST engine ships with **30+ rules** covering OWASP Top 10 and common vulner
 
 | Rule ID | CWE | Category | Severity |
 |---------|-----|----------|----------|
-| SAST-001 ~ 006 | CWE-89 | SQL Injection (f-string, +=, format, concatenation) | Critical |
-| SAST-010 ~ 013 | CWE-78 | OS Command Injection (shell=True, os.system, os.popen) | Critical |
+| SAST-001 ~ 008 | CWE-89 | SQL Injection (Python/PHP/Java/JS/Go/Rust/C#) | Critical |
+| SAST-010 ~ 016 | CWE-78 | OS Command Injection (All supported languages) | Critical |
 | SAST-020 ~ 022 | CWE-22 | Path Traversal / Arbitrary File Read | High |
 | SAST-030 ~ 031 | CWE-918 | Server-Side Request Forgery (SSRF) | High |
 | SAST-040 ~ 041 | CWE-79 | Cross-Site Scripting (XSS) | High |
@@ -215,6 +215,8 @@ The SAST engine ships with **30+ rules** covering OWASP Top 10 and common vulner
 | SAST-120 | CWE-200 | Sensitive Information Exposure (Exception Details) | Medium |
 | SAST-130 ~ 131 | CWE-639 | Insecure Direct Object Reference (IDOR) | High |
 | SAST-140 ~ 141 | CWE-200 | System/Config Information Leakage | High |
+| SAST-C-001~003 | CWE-120 | C/C++ Buffer Overflow & Memory Safety | Critical |
+| SAST-CS-001~005| CWE-89+ | C# .NET Specific Vulnerabilities | Critical |
 
 ---
 
@@ -380,7 +382,7 @@ scanner:
 
 sast:
   max_file_size_kb: 512
-  languages: [python, javascript, php, java]
+  languages: [python, javascript, php, java, go, rust, cpp, csharp]
   exclude_dirs: [node_modules, .git, __pycache__, venv]
 ```
 

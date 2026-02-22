@@ -25,6 +25,10 @@ sast:
     - javascript
     - php
     - java
+    - go
+    - rust
+    - cpp
+    - csharp
   exclude_dirs:
     - node_modules
     - .git

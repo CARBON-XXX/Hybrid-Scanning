@@ -33,7 +33,7 @@ class SASTConfig(BaseModel):
     """静态分析配置"""
     max_file_size_kb: int = Field(default=512, description="最大单文件分析大小(KB)")
     languages: list[str] = Field(
-        default=["python", "javascript", "php", "java"],
+        default=["python", "javascript", "php", "java", "go", "rust", "cpp", "csharp"],
         description="支持的语言列表",
     )
     exclude_dirs: list[str] = Field(

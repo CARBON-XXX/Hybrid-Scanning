@@ -126,12 +126,30 @@ async def _run_sca(config: AppConfig, project_dir: str, llm_client: Optional[Dee
     console.print(f"[*] Found {len(dep_files)} dependency files")
     
     for f in dep_files:
-        ecosystem = "npm" if f.name == "package.json" else "pypi"
+        ecosystem = "npm"
         deps = {}
-        if ecosystem == "npm":
+        
+        if f.name == "package.json":
+            ecosystem = "npm"
             deps = DependencyParser.parse_package_json(f)
-        else:
+        elif f.name == "requirements.txt":
+            ecosystem = "pypi"
             deps = DependencyParser.parse_requirements_txt(f)
+        elif f.name == "composer.json":
+            ecosystem = "packagist"
+            deps = DependencyParser.parse_composer_json(f)
+        elif f.name == "go.mod":
+            ecosystem = "go"
+            deps = DependencyParser.parse_go_mod(f)
+        elif f.name == "Cargo.toml":
+            ecosystem = "crates.io"
+            deps = DependencyParser.parse_cargo_toml(f)
+        elif f.name == "pom.xml":
+            ecosystem = "maven"
+            deps = DependencyParser.parse_pom_xml(f)
+        elif f.suffix == ".csproj":
+            ecosystem = "nuget"
+            deps = DependencyParser.parse_csproj(f)
             
         if not deps:
             continue

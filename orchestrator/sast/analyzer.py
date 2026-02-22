@@ -53,6 +53,10 @@ LANG_EXTENSIONS: dict[str, list[str]] = {
     "javascript": [".js", ".jsx", ".ts", ".tsx"],
     "php": [".php"],
     "java": [".java"],
+    "go": [".go"],
+    "rust": [".rs"],
+    "cpp": [".c", ".cpp", ".cxx", ".cc", ".h", ".hpp"],
+    "csharp": [".cs"],
 }
 
 
