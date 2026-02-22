@@ -81,8 +81,8 @@ def cmd_dast(
 
 @app.command("full")
 def cmd_full(
-    target_url: str = typer.Argument(..., help="目标 URL"),
     project_dir: str = typer.Argument(..., help="项目源代码目录"),
+    target_url: Optional[str] = typer.Argument(None, help="目标 URL (省略则跳过 DAST，仅执行 SAST)"),
     config_path: str = typer.Option("./config.yaml", "--config", "-c", help="配置文件路径"),
     active_scan: bool = typer.Option(True, "--active", "-a", help="执行主动漏洞扫描 (SQLi, XSS, CMDi)"),
     reasoning: bool = typer.Option(False, "--reasoning", "-r", help="使用 DeepSeek-V3.2 思考模式"),
@@ -494,7 +494,7 @@ async def _run_dast(
     console.print(f"\n[green][+] Report saved: {report_path}[/green]")
 
 
-async def _run_full(config: AppConfig, target_url: str, project_dir: str, do_active_scan: bool = True) -> None:
+async def _run_full(config: AppConfig, target_url: Optional[str], project_dir: str, do_active_scan: bool = True) -> None:
     """执行全量扫描：SAST + DAST + 交叉关联"""
     _print_banner()
     console.print(Panel("FULL ASSESSMENT :: SAST + DAST + LLM Correlation", style="bold magenta"))
@@ -528,42 +528,45 @@ async def _run_full(config: AppConfig, target_url: str, project_dir: str, do_act
     console.print(f"    [+] Combined SAST/SCA/IaC identified {len(sast_dicts)} potential issues")
 
     # ---- DAST ----
-    console.print("\n[bold green]--- Phase 2: DAST Dynamic Scanning ---[/bold green]")
     fingerprint_data: dict = {}
     open_ports: list = []
     found_paths: list = []
     active_vulns: list = []
     dast_analysis = None
 
-    try:
-        async with ScannerBridge(config.scanner) as bridge:
-            fingerprint_data = await bridge.fingerprint(target_url)
-            _print_fingerprint(fingerprint_data)
+    if target_url:
+        console.print("\n[bold green]--- Phase 2: DAST Dynamic Scanning ---[/bold green]")
+        try:
+            async with ScannerBridge(config.scanner) as bridge:
+                fingerprint_data = await bridge.fingerprint(target_url)
+                _print_fingerprint(fingerprint_data)
 
-            result = await bridge.dir_bust(target_url)
-            found_paths = result.get("found_paths", [])
-            console.print(f"    [+] {len(found_paths)} valid paths discovered")
+                result = await bridge.dir_bust(target_url)
+                found_paths = result.get("found_paths", [])
+                console.print(f"    [+] {len(found_paths)} valid paths discovered")
 
-            if do_active_scan:
-                console.print("[bold][*] Active Vulnerability Scanning...[/bold]")
-                targets_to_scan = {target_url}
-                for path_entry in found_paths:
-                    path = path_entry.get("path", "")
-                    if "?" in path:
-                        full_url = target_url.rstrip("/") + "/" + path.lstrip("/")
-                        targets_to_scan.add(full_url)
-                
-                console.print(f"    [*] Scanning {len(targets_to_scan)} endpoints...")
-                for url in targets_to_scan:
-                    res = await bridge.active_scan(url)
-                    vulns = res.get("vulnerabilities", [])
-                    if vulns:
-                        active_vulns.extend(vulns)
-                        for v in vulns:
-                            console.print(f"    [red][!] Found {v['name']} at {v['location']}[/red]")
+                if do_active_scan:
+                    console.print("[bold][*] Active Vulnerability Scanning...[/bold]")
+                    targets_to_scan = {target_url}
+                    for path_entry in found_paths:
+                        path = path_entry.get("path", "")
+                        if "?" in path:
+                            full_url = target_url.rstrip("/") + "/" + path.lstrip("/")
+                            targets_to_scan.add(full_url)
+                    
+                    console.print(f"    [*] Scanning {len(targets_to_scan)} endpoints...")
+                    for url in targets_to_scan:
+                        res = await bridge.active_scan(url)
+                        vulns = res.get("vulnerabilities", [])
+                        if vulns:
+                            active_vulns.extend(vulns)
+                            for v in vulns:
+                                console.print(f"    [red][!] Found {v['name']} at {v['location']}[/red]")
 
-    except FileNotFoundError as e:
-        console.print(f"[yellow][!] DAST skipped: {e}[/yellow]")
+        except FileNotFoundError as e:
+            console.print(f"[yellow][!] DAST skipped: {e}[/yellow]")
+    else:
+        console.print("\n[dim]--- Phase 2: DAST 已跳过 (未提供 TARGET_URL) ---[/dim]")
 
     # ---- LLM 综合推理 ----
     correlation = None
@@ -586,7 +589,7 @@ async def _run_full(config: AppConfig, target_url: str, project_dir: str, do_act
     console.print("\n[bold]--- Generating Report ---[/bold]")
     generator = ReportGenerator(config.report_output_dir, llm_client)
     report_path = await generator.generate(
-        target=f"{target_url} | {project_dir}",
+        target=f"{target_url} | {project_dir}" if target_url else project_dir,
         findings=sast_dicts,
         dast_analysis=dast_analysis,
         correlation=correlation,

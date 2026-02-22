@@ -192,7 +192,7 @@ python -m orchestrator.main dast "http://target:8080/search?q=test" --active
 python -m orchestrator.main api ./openapi.yaml --target-url http://localhost:5000/api --llm
 
 # Full - SAST + DAST + 主动扫描 + LLM 关联 (一条命令搞定)
-python -m orchestrator.main full http://target:8080 ./your-project --active
+python -m orchestrator.main full http://target:8080 ./your-project --active --reasoning
 ```
 
 ---
