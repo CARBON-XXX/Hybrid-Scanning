@@ -1,8 +1,8 @@
 """全局配置管理模块"""
+
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 import yaml
 from pydantic import BaseModel, Field
@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 class LLMConfig(BaseModel):
     """DeepSeek API 配置"""
+
     api_key: str = Field(default="", description="DeepSeek API Key")
     base_url: str = Field(default="https://api.deepseek.com", description="API base URL")
     model: str = Field(default="deepseek-chat", description="模型名称")
@@ -19,6 +20,7 @@ class LLMConfig(BaseModel):
 
 class ScannerConfig(BaseModel):
     """Rust 扫描引擎配置"""
+
     binary_path: str = Field(
         default="./scanner-engine/target/release/scanner-engine",
         description="Rust 扫描引擎二进制路径",
@@ -31,6 +33,7 @@ class ScannerConfig(BaseModel):
 
 class SASTConfig(BaseModel):
     """静态分析配置"""
+
     max_file_size_kb: int = Field(default=512, description="最大单文件分析大小(KB)")
     languages: list[str] = Field(
         default=["python", "javascript", "php", "java", "go", "rust", "cpp", "csharp"],
@@ -44,18 +47,23 @@ class SASTConfig(BaseModel):
 
 class SCAConfig(BaseModel):
     """SCA 依赖安全配置"""
+
     enabled: bool = Field(default=True, description="是否启用 SCA 扫描")
     ignored_packages: list[str] = Field(default=[], description="忽略的包名")
 
 
 class IaCConfig(BaseModel):
     """IaC 基础设施安全配置"""
+
     enabled: bool = Field(default=True, description="是否启用 IaC 扫描")
-    dockerfile_patterns: list[str] = Field(default=["Dockerfile*"], description="Dockerfile 文件名模式")
+    dockerfile_patterns: list[str] = Field(
+        default=["Dockerfile*"], description="Dockerfile 文件名模式"
+    )
 
 
 class AppConfig(BaseModel):
     """应用主配置"""
+
     llm: LLMConfig = Field(default_factory=LLMConfig)
     scanner: ScannerConfig = Field(default_factory=ScannerConfig)
     sast: SASTConfig = Field(default_factory=SASTConfig)
@@ -64,12 +72,12 @@ class AppConfig(BaseModel):
     report_output_dir: str = Field(default="./reports", description="报告输出目录")
 
     @classmethod
-    def from_yaml(cls, path: str | Path) -> "AppConfig":
+    def from_yaml(cls, path: str | Path) -> AppConfig:
         """从 YAML 文件加载配置"""
         p = Path(path)
         if not p.exists():
             return cls()
-        with open(p, "r", encoding="utf-8") as f:
+        with open(p, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
         return cls(**data)
 

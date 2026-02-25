@@ -1,9 +1,9 @@
 use crate::ipc::{PortInfo, PortRange, Response};
 use std::net::SocketAddr;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::TcpStream;
 use tokio::sync::Semaphore;
-use std::sync::Arc;
 
 /// TCP Connect 端口扫描器
 /// 使用 tokio 异步并发，通过 Semaphore 控制最大并发数
@@ -21,7 +21,6 @@ pub async fn scan(
     for port in ports.start..=ports.end {
         let sem = semaphore.clone();
         let addr_str = format!("{}:{}", target, port);
-        let timeout = timeout;
         let tx = progress_tx.clone();
 
         let handle = tokio::spawn(async move {
@@ -30,11 +29,13 @@ pub async fn scan(
 
             // 每扫描 500 个端口报告一次进度
             if port % 500 == 0 {
-                let _ = tx.send(Response::Progress {
-                    task: "port_scan".to_string(),
-                    current: port as usize,
-                    total: 0, // 由调用方填充
-                }).await;
+                let _ = tx
+                    .send(Response::Progress {
+                        task: "port_scan".to_string(),
+                        current: port as usize,
+                        total: 0, // 由调用方填充
+                    })
+                    .await;
             }
 
             result
@@ -53,7 +54,7 @@ pub async fn scan(
     open_ports
 }
 
-async fn probe_port(addr_str: &str, port: u16, timeout: Duration) -> Option<PortInfo> {
+async fn probe_port(addr_str: &str, port: u16, timeout_duration: Duration) -> Option<PortInfo> {
     let addr: SocketAddr = match addr_str.parse() {
         Ok(a) => a,
         Err(_) => {
@@ -68,7 +69,7 @@ async fn probe_port(addr_str: &str, port: u16, timeout: Duration) -> Option<Port
         }
     };
 
-    match tokio::time::timeout(timeout, TcpStream::connect(addr)).await {
+    match tokio::time::timeout(timeout_duration, TcpStream::connect(&addr)).await {
         Ok(Ok(_stream)) => {
             let service_hint = guess_service(port);
             Some(PortInfo {

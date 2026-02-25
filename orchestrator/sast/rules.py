@@ -1,13 +1,13 @@
 """内置漏洞检测规则库 - 基于正则 + AST 模式匹配"""
+
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Optional
+from enum import StrEnum
 
 
-class Severity(str, Enum):
+class Severity(StrEnum):
     CRITICAL = "Critical"
     HIGH = "High"
     MEDIUM = "Medium"
@@ -18,6 +18,7 @@ class Severity(str, Enum):
 @dataclass
 class VulnRule:
     """单条漏洞检测规则"""
+
     rule_id: str
     cwe: str
     title: str
@@ -27,7 +28,7 @@ class VulnRule:
     description: str
     remediation: str
     confidence: str = "Medium"  # High / Medium / Low
-    _compiled: Optional[re.Pattern[str]] = field(default=None, repr=False)
+    _compiled: re.Pattern[str] | None = field(default=None, repr=False)
 
     def compile(self) -> re.Pattern[str]:
         if self._compiled is None:
@@ -98,7 +99,6 @@ BUILTIN_RULES: list[VulnRule] = [
         remediation="使用 PDO 预编译语句 (prepared statements)",
         confidence="Medium",
     ),
-
     VulnRule(
         rule_id="SAST-007",
         cwe="CWE-89",
@@ -121,7 +121,6 @@ BUILTIN_RULES: list[VulnRule] = [
         remediation="使用 sqlx::query! 或参数化绑定",
         confidence="High",
     ),
-
     # ============================================================
     # 命令注入
     # ============================================================
@@ -169,7 +168,6 @@ BUILTIN_RULES: list[VulnRule] = [
         remediation="使用参数列表传递命令，避免通过变量传入完整命令字符串",
         confidence="Medium",
     ),
-
     VulnRule(
         rule_id="SAST-014",
         cwe="CWE-78",
@@ -233,10 +231,9 @@ BUILTIN_RULES: list[VulnRule] = [
         languages=["cpp"],
         pattern=r"""(?:printf|sprintf|fprintf|snprintf)\s*\(\s*(?:buf|str|input|user_input)\s*\)""",
         description="C/C++: 格式化函数直接使用变量作为格式字符串",
-        remediation="始终指定格式字符串，如 printf(\"%s\", str)",
+        remediation='始终指定格式字符串，如 printf("%s", str)',
         confidence="High",
     ),
-
     VulnRule(
         rule_id="SAST-CS-001",
         cwe="CWE-89",
@@ -292,7 +289,6 @@ BUILTIN_RULES: list[VulnRule] = [
         remediation="校验路径是否在允许的目录下，检测 .. 等遍历字符",
         confidence="Medium",
     ),
-
     # ============================================================
     # 路径遍历 / 任意文件读取
     # ============================================================
@@ -329,7 +325,6 @@ BUILTIN_RULES: list[VulnRule] = [
         remediation="对文件路径做白名单校验和规范化",
         confidence="Medium",
     ),
-
     # ============================================================
     # SSRF
     # ============================================================
@@ -355,7 +350,6 @@ BUILTIN_RULES: list[VulnRule] = [
         remediation="对 URL 进行白名单校验，禁止访问内网地址段 (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)",
         confidence="Medium",
     ),
-
     # ============================================================
     # XSS
     # ============================================================
@@ -381,7 +375,6 @@ BUILTIN_RULES: list[VulnRule] = [
         remediation="使用 render_template 加载独立模板文件，通过模板变量传递数据",
         confidence="High",
     ),
-
     # ============================================================
     # 反序列化
     # ============================================================
@@ -396,7 +389,6 @@ BUILTIN_RULES: list[VulnRule] = [
         remediation="Python: 使用 yaml.safe_load 替代 yaml.load；避免 pickle 处理不可信数据。PHP: 避免 unserialize 不可信数据。Java: 使用白名单 ObjectInputFilter",
         confidence="High",
     ),
-
     # ============================================================
     # 硬编码密钥
     # ============================================================
@@ -411,7 +403,6 @@ BUILTIN_RULES: list[VulnRule] = [
         remediation="使用环境变量或密钥管理服务存储敏感凭证",
         confidence="Medium",
     ),
-
     # ============================================================
     # 弱加密
     # ============================================================
@@ -426,7 +417,6 @@ BUILTIN_RULES: list[VulnRule] = [
         remediation="使用 SHA-256 及以上强度的哈希算法；使用 AES-256 进行对称加密",
         confidence="Medium",
     ),
-
     # ============================================================
     # SSTI
     # ============================================================
@@ -452,7 +442,6 @@ BUILTIN_RULES: list[VulnRule] = [
         remediation="使用沙箱化模板引擎，禁止用户控制模板内容",
         confidence="High",
     ),
-
     # ============================================================
     # 文件上传
     # ============================================================
@@ -478,7 +467,6 @@ BUILTIN_RULES: list[VulnRule] = [
         remediation="使用 werkzeug.utils.secure_filename 清理文件名，并校验文件扩展名白名单",
         confidence="Medium",
     ),
-
     # ============================================================
     # XXE
     # ============================================================
@@ -493,7 +481,6 @@ BUILTIN_RULES: list[VulnRule] = [
         remediation="禁用 XML 解析器的外部实体和 DTD 处理",
         confidence="Medium",
     ),
-
     # ============================================================
     # SSTI (变量传入)
     # ============================================================
@@ -508,7 +495,6 @@ BUILTIN_RULES: list[VulnRule] = [
         remediation="禁止将用户输入作为模板内容，使用 render_template 加载文件模板",
         confidence="High",
     ),
-
     # ============================================================
     # IDOR / 越权访问
     # ============================================================
@@ -534,7 +520,6 @@ BUILTIN_RULES: list[VulnRule] = [
         remediation="在删除前检查 resource.owner_id == current_user.id",
         confidence="Medium",
     ),
-
     # ============================================================
     # 敏感端点未授权
     # ============================================================
@@ -560,7 +545,6 @@ BUILTIN_RULES: list[VulnRule] = [
         remediation="禁止在 API 响应中暴露内部配置信息",
         confidence="High",
     ),
-
     # ============================================================
     # SQL 注入 (字符串拼接 +=)
     # ============================================================
@@ -575,7 +559,6 @@ BUILTIN_RULES: list[VulnRule] = [
         remediation="使用参数化查询替代字符串拼接",
         confidence="High",
     ),
-
     # ============================================================
     # Flask/Django 调试模式
     # ============================================================
@@ -590,7 +573,6 @@ BUILTIN_RULES: list[VulnRule] = [
         remediation="生产环境中必须关闭 debug 模式，使用环境变量控制",
         confidence="High",
     ),
-
     # ============================================================
     # 信息泄露
     # ============================================================

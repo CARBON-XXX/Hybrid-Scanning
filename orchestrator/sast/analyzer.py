@@ -1,10 +1,11 @@
 """SAST 静态分析引擎 - 双引擎架构（正则快扫 + LLM 深度审计）"""
+
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from orchestrator.config import SASTConfig
 from orchestrator.sast.rules import BUILTIN_RULES, VulnRule
@@ -13,6 +14,7 @@ from orchestrator.sast.rules import BUILTIN_RULES, VulnRule
 @dataclass
 class Finding:
     """单个漏洞发现"""
+
     rule_id: str
     cwe: str
     title: str
@@ -26,7 +28,7 @@ class Finding:
     remediation: str
     llm_verified: bool = False
     llm_analysis: str = ""
-    source: str = "regex"       # "regex" | "llm" | "both"
+    source: str = "regex"  # "regex" | "llm" | "both"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -69,7 +71,7 @@ class SASTAnalyzer:
     3. (可选) 将疑似漏洞代码片段送入 LLM 做交叉验证，减少误报
     """
 
-    def __init__(self, config: SASTConfig, rules: Optional[list[VulnRule]] = None) -> None:
+    def __init__(self, config: SASTConfig, rules: list[VulnRule] | None = None) -> None:
         self._config = config
         self._rules = rules or BUILTIN_RULES
         # 预编译所有正则
@@ -87,7 +89,7 @@ class SASTAnalyzer:
             target_exts.update(LANG_EXTENSIONS.get(lang, []))
 
         # 第三方压缩库后缀，跳过以减少误报
-        VENDOR_SUFFIXES = (".min.js", ".min.css", ".bundle.js", ".chunk.js")
+        vendor_suffixes = (".min.js", ".min.css", ".bundle.js", ".chunk.js")
 
         files: list[Path] = []
         for f in project_path.rglob("*"):
@@ -96,14 +98,14 @@ class SASTAnalyzer:
                 continue
             if f.is_file() and f.suffix in target_exts:
                 # 跳过第三方压缩/打包文件
-                if f.name.endswith(VENDOR_SUFFIXES):
+                if f.name.endswith(vendor_suffixes):
                     continue
                 # 跳过过大的文件
                 if f.stat().st_size <= self._config.max_file_size_kb * 1024:
                     files.append(f)
         return files
 
-    def detect_language(self, file_path: Path) -> Optional[str]:
+    def detect_language(self, file_path: Path) -> str | None:
         """根据文件扩展名判断语言"""
         for lang, exts in LANG_EXTENSIONS.items():
             if file_path.suffix in exts:
@@ -139,19 +141,21 @@ class SASTAnalyzer:
                 ctx_end = min(len(lines), line_num + 2)
                 snippet = "\n".join(lines[ctx_start:ctx_end])
 
-                findings.append(Finding(
-                    rule_id=rule.rule_id,
-                    cwe=rule.cwe,
-                    title=rule.title,
-                    severity=rule.severity.value,
-                    confidence=rule.confidence,
-                    file_path=str(file_path),
-                    line_start=line_num,
-                    line_end=min(line_num + 1, len(lines)),
-                    code_snippet=snippet,
-                    description=rule.description,
-                    remediation=rule.remediation,
-                ))
+                findings.append(
+                    Finding(
+                        rule_id=rule.rule_id,
+                        cwe=rule.cwe,
+                        title=rule.title,
+                        severity=rule.severity.value,
+                        confidence=rule.confidence,
+                        file_path=str(file_path),
+                        line_start=line_num,
+                        line_end=min(line_num + 1, len(lines)),
+                        code_snippet=snippet,
+                        description=rule.description,
+                        remediation=rule.remediation,
+                    )
+                )
 
         return findings
 
@@ -198,22 +202,24 @@ class SASTAnalyzer:
                 for f in result.get("findings", []):
                     line_start = f.get("line_start", 0) + line_offset
                     line_end = f.get("line_end", line_start) + line_offset
-                    all_findings.append(Finding(
-                        rule_id="LLM-AUDIT",
-                        cwe=f.get("cwe", "CWE-000"),
-                        title=f.get("title", "LLM-discovered vulnerability"),
-                        severity=f.get("severity", "Medium"),
-                        confidence=f.get("confidence", "Medium"),
-                        file_path=str(file_path),
-                        line_start=line_start,
-                        line_end=line_end,
-                        code_snippet=f.get("code_snippet", ""),
-                        description=f.get("description", ""),
-                        remediation=f.get("remediation", ""),
-                        llm_verified=True,
-                        llm_analysis=f.get("impact", "LLM deep audit finding"),
-                        source="llm",
-                    ))
+                    all_findings.append(
+                        Finding(
+                            rule_id="LLM-AUDIT",
+                            cwe=f.get("cwe", "CWE-000"),
+                            title=f.get("title", "LLM-discovered vulnerability"),
+                            severity=f.get("severity", "Medium"),
+                            confidence=f.get("confidence", "Medium"),
+                            file_path=str(file_path),
+                            line_start=line_start,
+                            line_end=line_end,
+                            code_snippet=f.get("code_snippet", ""),
+                            description=f.get("description", ""),
+                            remediation=f.get("remediation", ""),
+                            llm_verified=True,
+                            llm_analysis=f.get("impact", "LLM deep audit finding"),
+                            source="llm",
+                        )
+                    )
             except json.JSONDecodeError:
                 continue
             except Exception:
@@ -245,6 +251,7 @@ class SASTAnalyzer:
     def _extract_json(text: str) -> str:
         """从 LLM 响应中提取 JSON（处理 markdown 代码块包裹）"""
         import re
+
         # 尝试提取 ```json ... ``` 中的内容
         m = re.search(r"```(?:json)?\s*\n?(\{.*?\})\s*```", text, re.DOTALL)
         if m:
@@ -269,7 +276,6 @@ class SASTAnalyzer:
         used_llm: set[int] = set()
 
         for rf in regex_findings:
-            matched_llm = False
             for i, lf in enumerate(llm_findings):
                 if i in used_llm:
                     continue
@@ -283,7 +289,6 @@ class SASTAnalyzer:
                     rf.llm_analysis = lf.description or lf.llm_analysis
                     rf.source = "both"
                     used_llm.add(i)
-                    matched_llm = True
                     break
             merged.append(rf)
 
@@ -318,7 +323,7 @@ class SASTAnalyzer:
         # ---- 连通性测试 ----
         _log("[*] Testing API connectivity...")
         try:
-            test_resp = await llm_client.chat(
+            await llm_client.chat(
                 [{"role": "user", "content": "respond OK"}],
                 max_tokens=8,
             )
@@ -348,11 +353,11 @@ class SASTAnalyzer:
                 try:
                     results = await self.llm_audit_file(fp, llm_client)
                     status = f"{len(results)} vulns" if results else "clean"
-                    _log(f"    [{idx+1}/{len(files)}] {fp.name} -> {status}")
+                    _log(f"    [{idx + 1}/{len(files)}] {fp.name} -> {status}")
                     return results
                 except Exception as e:
                     audit_errors += 1
-                    _log(f"    [{idx+1}/{len(files)}] {fp.name} -> ERROR: {e}")
+                    _log(f"    [{idx + 1}/{len(files)}] {fp.name} -> ERROR: {e}")
                     return []
 
         tasks = [audit_one_file(i, f) for i, f in enumerate(files)]
@@ -370,7 +375,9 @@ class SASTAnalyzer:
         src_both = sum(1 for f in merged if f.source == "both")
         src_regex = sum(1 for f in merged if f.source == "regex")
         src_llm = sum(1 for f in merged if f.source == "llm")
-        _log(f"[+] Final: {len(merged)} findings (regex={src_regex}, llm={src_llm}, both={src_both})")
+        _log(
+            f"[+] Final: {len(merged)} findings (regex={src_regex}, llm={src_llm}, both={src_both})"
+        )
 
         # 排序
         severity_order = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3, "Info": 4}

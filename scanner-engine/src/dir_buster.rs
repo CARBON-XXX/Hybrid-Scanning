@@ -51,11 +51,13 @@ pub async fn bust(
 
             // 每 200 条报告进度
             if idx % 200 == 0 {
-                let _ = tx.send(Response::Progress {
-                    task: "dir_bust".to_string(),
-                    current: idx,
-                    total,
-                }).await;
+                let _ = tx
+                    .send(Response::Progress {
+                        task: "dir_bust".to_string(),
+                        current: idx,
+                        total,
+                    })
+                    .await;
             }
 
             result

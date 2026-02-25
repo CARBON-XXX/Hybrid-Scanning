@@ -4,10 +4,7 @@ use std::time::Duration;
 
 /// HTTP 指纹识别模块
 /// 通过响应头、响应体特征识别目标技术栈
-pub async fn identify(
-    target_url: &str,
-    timeout: Duration,
-) -> Result<Response, String> {
+pub async fn identify(target_url: &str, timeout: Duration) -> Result<Response, String> {
     let client = Client::builder()
         .timeout(timeout)
         .danger_accept_invalid_certs(true)
@@ -222,6 +219,9 @@ mod tests {
             extract_version("Apache/2.4.51 (Ubuntu)", "apache"),
             Some("2.4.51".to_string())
         );
-        assert_eq!(extract_version("Microsoft-IIS/10.0", "iis"), Some("10.0".to_string()));
+        assert_eq!(
+            extract_version("Microsoft-IIS/10.0", "iis"),
+            Some("10.0".to_string())
+        );
     }
 }

@@ -23,10 +23,7 @@ pub enum Request {
         extensions: Vec<String>,
     },
     #[serde(rename = "fingerprint")]
-    Fingerprint {
-        target_url: String,
-        timeout_ms: u64,
-    },
+    Fingerprint { target_url: String, timeout_ms: u64 },
     #[serde(rename = "active_scan")]
     ActiveScan {
         target_url: String,
@@ -74,9 +71,7 @@ pub enum Response {
         scan_duration_ms: u64,
     },
     #[serde(rename = "error")]
-    Error {
-        message: String,
-    },
+    Error { message: String },
     #[serde(rename = "progress")]
     Progress {
         task: String,
@@ -131,8 +126,8 @@ pub fn read_request() -> io::Result<Option<Request>> {
 
 /// 向 stdout 写入一行 JSON 响应
 pub fn write_response(resp: &Response) -> io::Result<()> {
-    let json = serde_json::to_string(resp)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+    let json =
+        serde_json::to_string(resp).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
     let stdout = io::stdout();
     let mut handle = stdout.lock();
     writeln!(handle, "{}", json)?;

@@ -1,8 +1,9 @@
 """安全评估报告生成器"""
+
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,7 @@ from orchestrator.llm.client import DeepSeekClient
 def _mask_secrets(cfg: dict) -> dict:
     """遮蔽配置中的敏感字段（如 API Key），防止报告泄露凭据"""
     import copy
+
     masked = copy.deepcopy(cfg)
     llm = masked.get("llm", {})
     if llm.get("api_key"):
@@ -224,12 +226,12 @@ class ReportGenerator:
 
         # 保存文件
         timestamp = datetime.now(tz).strftime("%Y%m%d_%H%M%S")
-        
+
         # Windows 文件名非法字符替换: < > : " / \ | ? *
         safe_target = target
-        for char in ['<', '>', ':', '"', '/', '\\', '|', '?', '*']:
+        for char in ["<", ">", ":", '"', "/", "\\", "|", "?", "*"]:
             safe_target = safe_target.replace(char, "_")
-            
+
         safe_target = safe_target[:50]
         filename = f"report_{safe_target}_{timestamp}.md"
         report_path = self._output_dir / filename

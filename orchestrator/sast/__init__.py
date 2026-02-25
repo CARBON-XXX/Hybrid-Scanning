@@ -1,4 +1,4 @@
 from .analyzer import SASTAnalyzer
-from .rules import VulnRule, BUILTIN_RULES
+from .rules import BUILTIN_RULES, VulnRule
 
 __all__ = ["SASTAnalyzer", "VulnRule", "BUILTIN_RULES"]

@@ -2,13 +2,14 @@
 
 通过 subprocess 启动 Rust 二进制，使用 JSON Lines over stdin/stdout 通信。
 """
+
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
-import subprocess
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from orchestrator.config import ScannerConfig
 
@@ -24,7 +25,7 @@ class ScannerBridge:
 
     def __init__(self, config: ScannerConfig) -> None:
         self._config = config
-        self._process: Optional[asyncio.subprocess.Process] = None
+        self._process: asyncio.subprocess.Process | None = None
 
     async def start(self) -> None:
         """启动 Rust 扫描引擎子进程"""
@@ -56,12 +57,10 @@ class ScannerBridge:
             # 检查 stderr 获取错误信息
             stderr_data = b""
             if self._process.stderr:
-                try:
+                with contextlib.suppress(TimeoutError):
                     stderr_data = await asyncio.wait_for(
                         self._process.stderr.read(4096), timeout=2.0
                     )
-                except asyncio.TimeoutError:
-                    pass
             raise RuntimeError(
                 f"扫描引擎无响应。stderr: {stderr_data.decode('utf-8', errors='ignore')}"
             )
@@ -73,8 +72,8 @@ class ScannerBridge:
         target: str,
         port_start: int = 1,
         port_end: int = 65535,
-        concurrency: Optional[int] = None,
-        timeout_ms: Optional[int] = None,
+        concurrency: int | None = None,
+        timeout_ms: int | None = None,
     ) -> dict[str, Any]:
         """执行端口扫描
 
@@ -100,10 +99,10 @@ class ScannerBridge:
     async def dir_bust(
         self,
         target_url: str,
-        wordlist: Optional[list[str]] = None,
-        extensions: Optional[list[str]] = None,
-        concurrency: Optional[int] = None,
-        timeout_ms: Optional[int] = None,
+        wordlist: list[str] | None = None,
+        extensions: list[str] | None = None,
+        concurrency: int | None = None,
+        timeout_ms: int | None = None,
     ) -> dict[str, Any]:
         """执行目录/路径爆破
 
@@ -133,7 +132,7 @@ class ScannerBridge:
     async def fingerprint(
         self,
         target_url: str,
-        timeout_ms: Optional[int] = None,
+        timeout_ms: int | None = None,
     ) -> dict[str, Any]:
         """执行 HTTP 指纹识别
 
@@ -154,9 +153,9 @@ class ScannerBridge:
     async def active_scan(
         self,
         target_url: str,
-        scan_types: Optional[list[str]] = None,
-        concurrency: Optional[int] = None,
-        timeout_ms: Optional[int] = None,
+        scan_types: list[str] | None = None,
+        concurrency: int | None = None,
+        timeout_ms: int | None = None,
     ) -> dict[str, Any]:
         """执行主动漏洞扫描 (DAST)
 
@@ -192,7 +191,7 @@ class ScannerBridge:
                 try:
                     self._process.terminate()
                     await asyncio.wait_for(self._process.wait(), timeout=5.0)
-                except (asyncio.TimeoutError, ProcessLookupError):
+                except (TimeoutError, ProcessLookupError):
                     self._process.kill()
                 self._process = None
 
@@ -202,14 +201,14 @@ class ScannerBridge:
         if not path.exists():
             raise FileNotFoundError(f"字典文件不存在: {path}")
         words = []
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             for line in f:
                 word = line.strip()
                 if word and not word.startswith("#"):
                     words.append(word)
         return words
 
-    async def __aenter__(self) -> "ScannerBridge":
+    async def __aenter__(self) -> ScannerBridge:
         await self.start()
         return self
 

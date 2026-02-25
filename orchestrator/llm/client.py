@@ -1,7 +1,8 @@
 """DeepSeek API 客户端 - 支持 DeepSeek-V3.2 思考/非思考模式"""
+
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from openai import AsyncOpenAI
 
@@ -41,8 +42,8 @@ class DeepSeekClient:
         self,
         messages: list[dict[str, str]],
         *,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
         json_mode: bool = False,
     ) -> str:
         """发送对话请求并返回助手回复内容
@@ -65,7 +66,9 @@ class DeepSeekClient:
             kwargs["max_completion_tokens"] = max_tokens or self._config.max_tokens
         else:
             # V3.2 非思考模式支持完整参数
-            kwargs["temperature"] = temperature if temperature is not None else self._config.temperature
+            kwargs["temperature"] = (
+                temperature if temperature is not None else self._config.temperature
+            )
             kwargs["max_tokens"] = max_tokens if max_tokens is not None else self._config.max_tokens
             if json_mode:
                 kwargs["response_format"] = {"type": "json_object"}
@@ -76,9 +79,7 @@ class DeepSeekClient:
         # V3.2 思考模式额外返回 reasoning_content，这里只取最终结果
         return content
 
-    def _prepare_messages(
-        self, messages: list[dict[str, str]]
-    ) -> list[dict[str, str]]:
+    def _prepare_messages(self, messages: list[dict[str, str]]) -> list[dict[str, str]]:
         """V3.2 思考模式不支持 system role，需合并到第一条 user 消息"""
         if not self.is_reasoner:
             return messages

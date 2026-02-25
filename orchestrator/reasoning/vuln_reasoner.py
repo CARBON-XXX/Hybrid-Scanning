@@ -1,4 +1,5 @@
 """漏洞推理引擎 - 整合 SAST + DAST 结果，由 LLM 做最终研判"""
+
 from __future__ import annotations
 
 import json
@@ -24,13 +25,14 @@ class VulnReasoner:
         fingerprint: dict[str, Any],
         open_ports: list[dict[str, Any]],
         found_paths: list[dict[str, Any]],
-        active_vulns: list[dict[str, Any]] = [],
+        active_vulns: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """分析 DAST 扫描结果
 
         将指纹、端口、路径信息以及主动扫描发现的漏洞送入 LLM，推理潜在攻击面和验证漏洞
         """
         # 如果有主动扫描发现的漏洞，直接整合进分析
+        active_vulns = active_vulns or []
         context = {
             "fingerprint": fingerprint,
             "open_ports": open_ports,
@@ -131,9 +133,7 @@ class VulnReasoner:
         except json.JSONDecodeError:
             return {"error": "LLM 返回的不是合法 JSON", "raw": result_json}
 
-    async def prioritize_findings(
-        self, findings: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    async def prioritize_findings(self, findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """对漏洞发现进行优先级排序
 
         基于 CVSS-like 评分逻辑：

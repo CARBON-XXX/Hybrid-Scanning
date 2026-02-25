@@ -74,7 +74,10 @@ pub async fn scan(
 
     let pairs: Vec<(String, String)> = parsed_url.query_pairs().into_owned().collect();
     if pairs.is_empty() {
-        warn!("No query parameters found for {}, skipping active scan", target_url);
+        warn!(
+            "No query parameters found for {}, skipping active scan",
+            target_url
+        );
         return vulnerabilities;
     }
 
@@ -87,12 +90,9 @@ pub async fn scan(
 
     let client = build_client(timeout);
 
-    let scan_sqli =
-        scan_types.iter().any(|t| t == "sqli" || t == "all");
-    let scan_xss =
-        scan_types.iter().any(|t| t == "xss" || t == "all");
-    let scan_cmdi =
-        scan_types.iter().any(|t| t == "cmdi" || t == "all");
+    let scan_sqli = scan_types.iter().any(|t| t == "sqli" || t == "all");
+    let scan_xss = scan_types.iter().any(|t| t == "xss" || t == "all");
+    let scan_cmdi = scan_types.iter().any(|t| t == "cmdi" || t == "all");
 
     for (param_name, original_value) in &pairs {
         info!("Testing parameter: {}={}", param_name, original_value);
@@ -101,7 +101,10 @@ pub async fn scan(
             for payload in SQLI_PAYLOADS {
                 if let Some(vuln) = check_sqli(&client, &mut parsed_url, param_name, payload).await
                 {
-                    info!("SQLi found: {} at {}={}", vuln.evidence, param_name, payload);
+                    info!(
+                        "SQLi found: {} at {}={}",
+                        vuln.evidence, param_name, payload
+                    );
                     vulnerabilities.push(vuln);
                     break;
                 }
@@ -110,8 +113,7 @@ pub async fn scan(
 
         if scan_xss {
             for payload in XSS_PAYLOADS {
-                if let Some(vuln) = check_xss(&client, &mut parsed_url, param_name, payload).await
-                {
+                if let Some(vuln) = check_xss(&client, &mut parsed_url, param_name, payload).await {
                     info!("XSS found at {}={}", param_name, payload);
                     vulnerabilities.push(vuln);
                     break;
@@ -169,16 +171,19 @@ async fn check_sqli(
     set_query_param(url, param, payload);
 
     if let Some((status, text)) = fire_payload(client, url).await {
-        info!("  [sqli] {}={} -> HTTP {} ({}B)", param, payload, status, text.len());
+        info!(
+            "  [sqli] {}={} -> HTTP {} ({}B)",
+            param,
+            payload,
+            status,
+            text.len()
+        );
         for error_msg in SQL_ERRORS {
             if text.contains(error_msg) {
                 return Some(Vulnerability {
                     name: "SQL Injection".to_string(),
                     severity: "Critical".to_string(),
-                    description: format!(
-                        "Database error message found using payload: {}",
-                        payload
-                    ),
+                    description: format!("Database error message found using payload: {}", payload),
                     evidence: error_msg.to_string(),
                     location: format!("{}={}", param, payload),
                 });
@@ -200,16 +205,17 @@ async fn check_xss(
         let found = text.contains(payload);
         info!(
             "  [xss] {}={} -> HTTP {} ({}B) reflected={}",
-            param, payload, status, text.len(), found
+            param,
+            payload,
+            status,
+            text.len(),
+            found
         );
         if found {
             return Some(Vulnerability {
                 name: "Reflected XSS".to_string(),
                 severity: "High".to_string(),
-                description: format!(
-                    "Payload reflected in response using payload: {}",
-                    payload
-                ),
+                description: format!("Payload reflected in response using payload: {}", payload),
                 evidence: payload.to_string(),
                 location: format!("{}={}", param, payload),
             });
@@ -227,16 +233,19 @@ async fn check_cmdi(
     set_query_param(url, param, payload);
 
     if let Some((status, text)) = fire_payload(client, url).await {
-        info!("  [cmdi] {}={} -> HTTP {} ({}B)", param, payload, status, text.len());
+        info!(
+            "  [cmdi] {}={} -> HTTP {} ({}B)",
+            param,
+            payload,
+            status,
+            text.len()
+        );
 
         if text.contains("uid=") && text.contains("gid=") {
             return Some(Vulnerability {
                 name: "Command Injection".to_string(),
                 severity: "Critical".to_string(),
-                description: format!(
-                    "Command execution output found using payload: {}",
-                    payload
-                ),
+                description: format!("Command execution output found using payload: {}", payload),
                 evidence: "uid=... gid=...".to_string(),
                 location: format!("{}={}", param, payload),
             });

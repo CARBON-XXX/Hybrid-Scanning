@@ -1,4 +1,5 @@
 """LLM Prompt 模板库 - 安全分析专用"""
+
 from __future__ import annotations
 
 import json
@@ -23,9 +24,7 @@ class PromptTemplates:
     @staticmethod
     def code_audit(code: str, language: str, context: str = "") -> list[dict[str, str]]:
         """源代码审计 Prompt"""
-        user_content = (
-            f"请审计以下 {language} 代码的安全性。\n\n"
-        )
+        user_content = f"请审计以下 {language} 代码的安全性。\n\n"
         if context:
             user_content += f"上下文信息：{context}\n\n"
         user_content += (
